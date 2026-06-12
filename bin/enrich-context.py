@@ -17,18 +17,48 @@ exits 0 and never raises — notifications must never fail the calling turn.
 import sys, os, json, glob, re
 
 MAX = 140  # max summary length
+MIN_MEANINGFUL = 12  # shorter cleaned lines are treated as lead-ins/labels
 
 
-def first_line(text):
+def _clean_md(line):
+    """Strip common markdown so a line reads as plain prose."""
+    s = line.strip()
+    s = re.sub(r"^>\s?", "", s)                   # blockquote
+    s = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", s)  # [text](url) -> text
+    s = s.replace("**", "").replace("__", "").replace("`", "")
+    s = re.sub(r"(?<![\w*_])[*_](?=\S)", "", s)   # stray emphasis markers
+    s = re.sub(r"^#{1,6}\s+", "", s)              # ATX headings
+    s = re.sub(r"^\s*(?:[-*+]|\d+[.)])\s+", "", s)  # list markers / "1." "1)"
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def summarize(text):
+    """Pick the first substantive sentence, skipping headings/lead-ins.
+
+    A leading line such as "Two things:" or a markdown heading is a poor
+    summary, so we skip lines that end with ':' or are very short when a
+    more substantial line follows.
+    """
     text = (text or "").strip()
     if not text:
         return ""
-    # collapse to a single tidy line
-    line = text.splitlines()[0].strip()
-    line = re.sub(r"\s+", " ", line)
-    if len(line) > MAX:
-        line = line[: MAX - 1].rstrip() + "…"
-    return line
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)  # drop code fences
+    lines = [c for c in (_clean_md(l) for l in text.splitlines()) if c]
+    if not lines:
+        return ""
+    chosen = ""
+    for i, line in enumerate(lines):
+        is_leadin = line.endswith(":") or len(line) < MIN_MEANINGFUL
+        if is_leadin and i + 1 < len(lines):
+            continue
+        chosen = line
+        break
+    if not chosen:
+        chosen = lines[0]
+    if len(chosen) > MAX:
+        chosen = chosen[: MAX - 1].rstrip() + "…"
+    return chosen
 
 
 def last_assistant_message(transcript_path, session_id):
@@ -79,7 +109,7 @@ def main():
     transcript = payload.get("transcript_path") or payload.get("transcriptPath") or ""
 
     tab = os.path.basename(cwd.rstrip("/")) if cwd else ""
-    summary = first_line(last_assistant_message(transcript, session_id))
+    summary = summarize(last_assistant_message(transcript, session_id))
 
     print(tab)
     print(summary)
