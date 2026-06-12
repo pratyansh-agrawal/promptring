@@ -25,7 +25,7 @@ Terminal-native desktop notifications for the **GitHub Copilot CLI** — so you
 know the moment an agent finishes a task, needs your input, or hits a blocker,
 even when you've switched to another app.
 
-No Homebrew, no `terminal-notifier`, no `osascript`. promptring ships a tiny,
+No Homebrew, no extra packages, no `osascript` hacks. promptring ships a tiny,
 self-contained macOS notification agent (built locally from source) plus the
 built-in `afplay` for sound — real desktop **banners** that work from **any**
 terminal, including Terminal.app and iTerm2.
