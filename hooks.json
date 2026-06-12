@@ -4,19 +4,19 @@
     "agentStop": [
       {
         "type": "command",
-        "bash": "\"$HOME/.copilot/notify/bin/copilot-notify\" done >/dev/null 2>&1 || true"
+        "bash": "\"$HOME/.copilot/promptring/bin/copilot-notify\" done >/dev/null 2>&1 || true"
       }
     ],
     "notification": [
       {
         "type": "command",
         "matcher": "permission_prompt",
-        "bash": "\"$HOME/.copilot/notify/bin/copilot-notify\" input 'Permission needed' >/dev/null 2>&1 || true"
+        "bash": "\"$HOME/.copilot/promptring/bin/copilot-notify\" input 'Permission needed' >/dev/null 2>&1 || true"
       },
       {
         "type": "command",
         "matcher": "elicitation_dialog",
-        "bash": "\"$HOME/.copilot/notify/bin/copilot-notify\" input 'Input requested' >/dev/null 2>&1 || true"
+        "bash": "\"$HOME/.copilot/promptring/bin/copilot-notify\" input 'Input requested' >/dev/null 2>&1 || true"
       }
     ]
   }

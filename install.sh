@@ -2,14 +2,15 @@
 # ════════════════════════════════════════════════════════════════════
 #  promptring — installer
 # ════════════════════════════════════════════════════════════════════
-#  1. Builds the Promptring.app notification agent (signed .app bundle —
+#  1. Copies the notifier, config and sound into ~/.copilot/promptring and
+#     builds the Promptring.app notification agent there (a signed .app —
 #     the only thing that shows banners reliably from any terminal).
-#  2. Registers it with LaunchServices so macOS grants it a notification
-#     identity (appears in System Settings → Notifications).
-#  3. Symlinks the notifier + config into ~/.copilot/notify so this repo
-#     stays the single source of truth (edit here, changes apply live).
-#  4. Installs the Copilot CLI notification hook (deterministic firing on
-#     the CLI's own events — no dependence on the model).
+#  2. Registers the app with LaunchServices so macOS grants it a
+#     notification identity (appears in System Settings → Notifications).
+#  3. Installs the Copilot CLI notification hook into ~/.copilot/hooks.
+#
+#  Everything lives under ~/.copilot, so the clone is no longer needed
+#  after install — you can delete or move it freely.
 #
 #  Idempotent: re-running just refreshes everything in place.
 #
@@ -31,12 +32,13 @@ info()  { printf '  %s%s%s\n'   "$DIM" "$1" "$X"; }
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COPILOT_DIR="$HOME/.copilot"
-NOTIFY_DIR="$COPILOT_DIR/notify"
+HOME_DIR="$COPILOT_DIR/promptring"          # self-contained install home
 INSTRUCTIONS="$COPILOT_DIR/copilot-instructions.md"
 HOOKS_SRC="$REPO/hooks.json"
 HOOKS_DST="$COPILOT_DIR/hooks/hooks.json"
-APP="$REPO/app/Promptring.app"
+APP="$HOME_DIR/app/Promptring.app"
 APP_BIN="$APP/Contents/MacOS/promptring"
+LEGACY_NOTIFY="$COPILOT_DIR/notify"         # pre-1.x symlink location
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 
 printf '%s' "$B$C"
@@ -48,11 +50,23 @@ BANNER
 printf '%s' "$X"
 info "repo: $REPO"
 
-# ── 1. build the notification agent app ─────────────────────────────
+# ── 1. copy the runtime into ~/.copilot/promptring ─────────────────
+step "Installing into $HOME_DIR"
+rm -rf "$HOME_DIR"
+mkdir -p "$HOME_DIR/app"
+cp -R "$REPO/bin"            "$HOME_DIR/bin"
+cp -R "$REPO/sounds"         "$HOME_DIR/sounds"
+cp    "$REPO/categories.conf" "$HOME_DIR/categories.conf"
+cp    "$REPO/app/build.sh" "$REPO/app/Info.plist" "$REPO/app/icon.png" "$HOME_DIR/app/"
+cp -R "$REPO/app/src"        "$HOME_DIR/app/src"
+chmod +x "$HOME_DIR/bin/copilot-notify" "$HOME_DIR/bin/enrich-context.py" "$HOME_DIR/app/build.sh"
+ok "copied notifier + config + sound"
+
+# ── 2. build the notification agent app (in place) ──────────────────
 step "Building Promptring.app (notification agent)"
 if [ "$(uname -s)" != "Darwin" ]; then
   warn "Not macOS — skipping app build. Bell/OSC fallback will be used."
-elif bash "$REPO/app/build.sh" >/dev/null 2>&1; then
+elif bash "$HOME_DIR/app/build.sh" >/dev/null 2>&1; then
   ok "built  → $APP"
 else
   warn "Build failed. Ensure Xcode Command Line Tools are installed:"
@@ -60,41 +74,38 @@ else
   info "Continuing — bell/OSC fallback will be used until the app builds."
 fi
 
-# ── 2. register the app with LaunchServices ─────────────────────────
+# ── 3. register the app with LaunchServices ─────────────────────────
 if [ -x "$APP_BIN" ] && [ -x "$LSREGISTER" ]; then
   step "Registering app with LaunchServices"
   "$LSREGISTER" -f "$APP" 2>/dev/null || true
   ok "registered com.promptring.notifier"
 fi
 
-# ── 3. link the helper + config ─────────────────────────────────────
-step "Linking notifier into ~/.copilot/notify"
-mkdir -p "$NOTIFY_DIR/bin"
-ln -sf "$REPO/bin/copilot-notify" "$NOTIFY_DIR/bin/copilot-notify"
-ln -sf "$REPO/categories.conf"    "$NOTIFY_DIR/categories.conf"
-chmod +x "$REPO/bin/copilot-notify"
-ok "linked → $NOTIFY_DIR/bin/copilot-notify"
-ok "linked → $NOTIFY_DIR/categories.conf"
-info "sounds + app resolved from the repo via real-path resolution"
-
-# ── 4. install the notification hook (deterministic firing) ─────────
+# ── 4. install the notification hook ────────────────────────────────
 #  Copilot CLI reads ~/.copilot/hooks/hooks.json on every session start
-#  and fires our notifier directly on its own events — no dependence on
+#  and fires the notifier directly on its own events — no dependence on
 #  the model remembering to run a command.
 #    • agentStop                       → copilot-notify done
 #    • notification permission_prompt  → copilot-notify input
 #    • notification elicitation_dialog → copilot-notify input
 step "Installing Copilot CLI notification hook"
-if [ -L "$HOOKS_DST" ] || [ ! -e "$HOOKS_DST" ]; then
-  mkdir -p "$(dirname "$HOOKS_DST")"
-  ln -sf "$HOOKS_SRC" "$HOOKS_DST"
-  ok "linked → $HOOKS_DST"
+mkdir -p "$(dirname "$HOOKS_DST")"
+if [ ! -e "$HOOKS_DST" ] || [ -L "$HOOKS_DST" ] || grep -q "copilot-notify" "$HOOKS_DST" 2>/dev/null; then
+  rm -f "$HOOKS_DST"
+  cp "$HOOKS_SRC" "$HOOKS_DST"
+  ok "installed → $HOOKS_DST"
 else
-  warn "$HOOKS_DST exists (not a promptring symlink) — left untouched."
+  warn "$HOOKS_DST exists with other hooks — left untouched."
   info "Merge the hooks from $HOOKS_SRC into it manually."
 fi
 
-# ── 5. remove any obsolete promptring instruction block ─────────────
+# ── 5. clean up legacy install (pre-1.x symlink layout) ─────────────
+if [ -d "$LEGACY_NOTIFY" ]; then
+  rm -rf "$LEGACY_NOTIFY"
+  info "removed legacy ~/.copilot/notify (symlink layout)"
+fi
+
+# ── 6. remove any obsolete promptring instruction block ─────────────
 #  The hook supersedes the old instruction-based firing; leaving the
 #  block in would double-fire, so strip it.
 if [ -e "$INSTRUCTIONS" ] && grep -qF "promptring:start" "$INSTRUCTIONS"; then
@@ -118,10 +129,10 @@ cat <<EOF
 
 ${B}Next steps${X}
   ${DIM}1.${X} Fire a test banner:
-       ${C}$NOTIFY_DIR/bin/copilot-notify done "promptring works"${X}
+       ${C}$HOME_DIR/bin/copilot-notify done "promptring works"${X}
   ${DIM}2.${X} First time only: macOS shows a ${B}Promptring${X} permission prompt → ${B}Allow${X},
        then set its alert style to ${B}Banners${X} in System Settings → Notifications.
   ${DIM}3.${X} Restart your Copilot CLI session so the hook loads.
 
-${DIM}Don't move the cloned folder after install — live paths symlink into it.${X}
+${DIM}Everything lives under ~/.copilot/promptring now — you can safely delete or move this clone.${X}
 EOF
