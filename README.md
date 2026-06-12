@@ -1,4 +1,11 @@
-# promptring 🔔
+<h1 align="center">
+  <img src="app/icon.png" width="116" alt="promptring icon"><br>
+  promptring
+</h1>
+
+<p align="center">
+  <strong>prompt·tring</strong> &nbsp;/ˈprɒm(p)t.trɪŋ/&nbsp; — that little <strong>tring</strong> 🔔 the moment your terminal agent is done.
+</p>
 
 Terminal-native desktop notifications for the **GitHub Copilot CLI** — so you
 know the moment an agent finishes a task, needs your input, or hits a blocker,
