@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>promptring — desktop notifications for the GitHub Copilot CLI (macOS)</title>
+  <meta name="description" content="promptring (prompt·tring) fires real macOS desktop notification banners when the GitHub Copilot CLI agent finishes a task, needs your input, or hits a blocker. Zero dependencies, works from any terminal — Terminal.app, iTerm2, VS Code. Built by Pratyansh Agrawal.">
+  <meta name="keywords" content="promptring, prompt-tring, GitHub Copilot CLI, copilot cli notifications, macOS notifications, terminal notifier, desktop banner, iTerm2, Terminal.app, developer tools, Pratyansh Agrawal, copilot notify, agent notifications">
+  <meta name="author" content="Pratyansh Agrawal">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#f24d63">
+  <link rel="canonical" href="https://pratyansh-agrawal.github.io/promptring/">
+  <link rel="icon" type="image/png" href="media/icon.png">
+  <link rel="apple-touch-icon" href="media/icon.png">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="promptring">
+  <meta property="og:title" content="promptring — desktop notifications for the GitHub Copilot CLI">
+  <meta property="og:description" content="Real macOS notification banners when your Copilot CLI agent finishes, needs input, or is blocked. Zero dependencies, works from any terminal.">
+  <meta property="og:url" content="https://pratyansh-agrawal.github.io/promptring/">
+  <meta property="og:image" content="https://pratyansh-agrawal.github.io/promptring/media/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="promptring app icon and tagline: desktop notifications for the GitHub Copilot CLI">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="promptring — desktop notifications for the GitHub Copilot CLI">
+  <meta name="twitter:description" content="Real macOS notification banners when your Copilot CLI agent finishes, needs input, or is blocked. Zero dependencies, works from any terminal.">
+  <meta name="twitter:image" content="https://pratyansh-agrawal.github.io/promptring/media/og-image.png">
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "promptring",
+    "alternateName": "prompt-tring",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS",
+    "description": "Desktop notifications for the GitHub Copilot CLI — real macOS banners when an agent finishes a task, needs your input, or hits a blocker. Works from any terminal with zero dependencies.",
+    "url": "https://pratyansh-agrawal.github.io/promptring/",
+    "downloadUrl": "https://github.com/pratyansh-agrawal/promptring",
+    "image": "https://pratyansh-agrawal.github.io/promptring/media/og-image.png",
+    "license": "https://github.com/pratyansh-agrawal/promptring/blob/main/LICENSE",
+    "author": {
+      "@type": "Person",
+      "name": "Pratyansh Agrawal",
+      "url": "https://github.com/pratyansh-agrawal"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
+  <style>
+    :root{
+      --orange:#ff8a3d; --coral:#f24d63; --ink:#16181f; --muted:#5b6472;
+      --card:#ffffff; --line:#ececf1; --bg:#fbfbfd;
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",
+        "Helvetica Neue",Arial,sans-serif;
+      color:var(--ink);background:var(--bg);line-height:1.55;
+      -webkit-font-smoothing:antialiased;
+    }
+    a{color:var(--coral);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:880px;margin:0 auto;padding:0 24px}
+
+    /* hero */
+    header.hero{
+      text-align:center;padding:84px 24px 56px;
+      background:radial-gradient(1100px 460px at 50% -120px,#fff5ef 0%,var(--bg) 70%);
+    }
+    .appicon{width:120px;height:120px;border-radius:27px;
+      box-shadow:0 16px 40px rgba(242,77,99,.22);}
+    h1{font-size:64px;font-weight:800;letter-spacing:-1.5px;margin-top:20px;line-height:1}
+    .ipa{font-size:17px;color:var(--muted);font-weight:600;margin-top:10px}
+    .tagline{font-size:21px;color:var(--ink);margin:22px auto 0;max-width:620px;font-weight:500}
+    .cta{margin-top:32px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+    .btn{display:inline-block;padding:13px 24px;border-radius:12px;font-weight:600;font-size:16px}
+    .btn.primary{background:linear-gradient(135deg,var(--orange),var(--coral));color:#fff;
+      box-shadow:0 8px 22px rgba(242,77,99,.3)}
+    .btn.primary:hover{text-decoration:none;filter:brightness(1.04)}
+    .btn.ghost{background:var(--card);border:1px solid var(--line);color:var(--ink)}
+    .btn.ghost:hover{text-decoration:none;border-color:#d9d9e2}
+
+    /* demo */
+    .demo{margin:8px auto 0;max-width:720px;padding:24px}
+    .demo img{width:100%;border-radius:16px;box-shadow:0 18px 50px rgba(22,24,31,.14)}
+
+    /* sections */
+    section{padding:40px 0}
+    h2{font-size:26px;font-weight:700;letter-spacing:-.5px;margin-bottom:18px}
+    .lead{color:var(--muted);font-size:18px;max-width:680px}
+
+    .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:8px}
+    .feature{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+    .feature .emoji{font-size:24px}
+    .feature h3{font-size:17px;margin:8px 0 4px}
+    .feature p{color:var(--muted);font-size:15px}
+
+    pre{background:#16181f;color:#e8eef7;border-radius:14px;padding:18px 20px;overflow:auto;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14.5px;line-height:1.7}
+    pre .c{color:#7d8aa0}
+    code.inline{background:#f0f0f4;border-radius:6px;padding:2px 7px;font-size:90%;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+    footer{border-top:1px solid var(--line);margin-top:32px;padding:34px 0 60px;
+      color:var(--muted);font-size:15px;text-align:center}
+    @media (max-width:560px){h1{font-size:48px}.tagline{font-size:18px}}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <img class="appicon" src="media/icon.png" alt="promptring app icon — a terminal with a notification bell">
+      <h1>promptring</h1>
+      <div class="ipa">prompt·tring &nbsp;/ˈprɒm(p)t.trɪŋ/</div>
+      <p class="tagline">Desktop notifications for the <strong>GitHub Copilot CLI</strong> — that little <em>tring</em> 🔔 the moment your terminal agent is done, needs input, or hits a blocker.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/pratyansh-agrawal/promptring">⭐ View on GitHub</a>
+        <a class="btn ghost" href="#install">Install</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="demo wrap">
+    <img src="media/banner-demo.gif" alt="promptring macOS notification banners cycling through task complete, needs your input, and blocked states">
+  </div>
+
+  <main class="wrap">
+    <section>
+      <h2>Why promptring?</h2>
+      <p class="lead">The GitHub Copilot CLI gives you no reliable desktop notification when an agent finishes or pauses for input — so you sit and watch the terminal, or miss the moment entirely. promptring fixes that with real macOS banners that fire from <strong>any</strong> terminal: Terminal.app, iTerm2, VS Code, or tmux.</p>
+    </section>
+
+    <section>
+      <h2>Features</h2>
+      <div class="features">
+        <div class="feature"><div class="emoji">🔔</div><h3>Real macOS banners</h3><p>A signed notification agent posts genuine Notification Center banners — not fragile escape codes.</p></div>
+        <div class="feature"><div class="emoji">📂</div><h3>Tab name &amp; summary</h3><p>Each banner shows which terminal session pinged you and a one-line recap of what the agent did.</p></div>
+        <div class="feature"><div class="emoji">⚡</div><h3>Zero dependencies</h3><p>No Homebrew, no terminal-notifier, no osascript. Just clone and run the installer.</p></div>
+        <div class="feature"><div class="emoji">🪝</div><h3>Native CLI hooks</h3><p>Wires into the Copilot CLI's own lifecycle events, so firing is deterministic — never reliant on the model.</p></div>
+        <div class="feature"><div class="emoji">🔊</div><h3>Bundled sound</h3><p>Ships its own “tring” chime, layered on the banner. Use any system sound or turn it off.</p></div>
+        <div class="feature"><div class="emoji">🖥️</div><h3>Any terminal</h3><p>Works the same whether you run Copilot in Terminal.app, iTerm2, VS Code, or under tmux.</p></div>
+      </div>
+    </section>
+
+    <section id="install">
+      <h2>Install</h2>
+      <p class="lead" style="margin-bottom:16px">macOS · Xcode Command Line Tools · <code class="inline">git</code>, <code class="inline">bash</code>.</p>
+      <pre><span class="c"># clone &amp; install — builds the app, registers it, installs the hook</span>
+git clone https://github.com/pratyansh-agrawal/promptring.git
+cd promptring
+./install.sh
+
+<span class="c"># test it</span>
+~/.copilot/promptring/bin/copilot-notify done "promptring works"</pre>
+      <p class="lead" style="margin-top:16px">Everything installs under <code class="inline">~/.copilot/promptring</code>, so you can delete the clone afterwards. Restart your Copilot CLI session so the hook loads. Full docs on <a href="https://github.com/pratyansh-agrawal/promptring">GitHub</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <strong>promptring</strong> — built by <a href="https://github.com/pratyansh-agrawal">Pratyansh Agrawal</a> ·
+      <a href="https://github.com/pratyansh-agrawal/promptring">Source on GitHub</a> ·
+      MIT License
+    </div>
+  </footer>
+</body>
+</html>

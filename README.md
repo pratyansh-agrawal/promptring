@@ -8,6 +8,16 @@
 </p>
 
 <p align="center">
+  <a href="https://pratyansh-agrawal.github.io/promptring/"><strong>Website</strong></a> &nbsp;·&nbsp;
+  <a href="#install">Install</a> &nbsp;·&nbsp;
+  <a href="#usage">Usage</a>
+  <br><br>
+  <img src="https://img.shields.io/badge/platform-macOS-000?logo=apple" alt="macOS">
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
+  <img src="https://img.shields.io/badge/dependencies-none-brightgreen" alt="Zero dependencies">
+</p>
+
+<p align="center">
   <img src="docs/media/banner-demo.gif" width="640" alt="promptring banners cycling through task complete, needs input, and blocked states">
 </p>
 

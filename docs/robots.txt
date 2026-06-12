@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://pratyansh-agrawal.github.io/promptring/sitemap.xml
