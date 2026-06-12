@@ -7,6 +7,10 @@
   <strong>prompt·tring</strong> &nbsp;/ˈprɒm(p)t.trɪŋ/&nbsp; — that little <strong>tring</strong> 🔔 the moment your terminal agent is done.
 </p>
 
+<p align="center">
+  <img src="docs/media/banner-hero.png" width="640" alt="promptring macOS notification banner">
+</p>
+
 Terminal-native desktop notifications for the **GitHub Copilot CLI** — so you
 know the moment an agent finishes a task, needs your input, or hits a blocker,
 even when you've switched to another app.
@@ -21,6 +25,11 @@ terminal, including Terminal.app and iTerm2.
 🟡 Copilot — Needs your input: choose a database engine
 ⛔ Copilot — Blocked — needs you: build failed, missing env var
 ```
+
+<p align="center">
+  <img src="docs/media/banner-demo.gif" width="720" alt="promptring banners cycling through task complete, needs input, and blocked states">
+</p>
+
 
 ## Install
 
