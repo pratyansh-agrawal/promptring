@@ -1,0 +1,266 @@
+#!/bin/bash
+# ════════════════════════════════════════════════════════════════════
+#  copilot-notify — desktop notification dispatcher for the Copilot CLI
+# ════════════════════════════════════════════════════════════════════
+#  Usage:
+#      copilot-notify <category> [message]
+#
+#  Examples:
+#      copilot-notify done  "fixed iTerm notifications"
+#      copilot-notify input "choose a database engine"
+#      copilot-notify ready
+#
+#  How it works:
+#    • Posts a real desktop banner via the bundled Promptring.app
+#      (UNUserNotificationCenter) — works from ANY terminal, even when the
+#      Copilot CLI captures the agent's stdout.
+#    • When invoked by a Copilot CLI hook, reads the JSON payload on STDIN
+#      to label the banner with the terminal TAB title (matched by TTY via
+#      AppleScript) and a one-line summary of the agent's last message.
+#    • Sound: plays the bundled tring (or a named system sound) via the
+#      built-in `afplay`. Set COPILOT_NOTIFY_SOUND=0 to disable it.
+#    • Fallbacks: iTerm dock bounce (OSC 1337); OSC 777 + bell elsewhere.
+#
+#  Silent + never fails the calling turn.
+# ════════════════════════════════════════════════════════════════════
+
+set -u
+
+# --- resolve our REAL location (follow symlinks) so bundled assets ---
+# (categories.conf, sounds/) are found even when invoked via a symlink
+# such as ~/.copilot/notify/bin/copilot-notify.
+_src="${BASH_SOURCE[0]}"
+while [ -h "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  case "$_src" in /*) ;; *) _src="$_dir/$_src" ;; esac
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$_src")" && pwd)"
+
+# --- locate config + bundled sounds (override config: COPILOT_NOTIFY_CONFIG)
+CONFIG="${COPILOT_NOTIFY_CONFIG:-$SCRIPT_DIR/../categories.conf}"
+BUNDLE_SOUNDS="$SCRIPT_DIR/../sounds"
+APP_BIN="$SCRIPT_DIR/../app/Promptring.app/Contents/MacOS/promptring"
+
+# --- args ------------------------------------------------------------
+KEY="${1:-}"
+BODY="${2:-}"
+[ -n "$KEY" ] || { echo "copilot-notify: missing <category>" >&2; exit 0; }
+
+# --- hook context enrichment ----------------------------------------
+# When fired by a Copilot CLI hook, the CLI pipes a JSON payload on STDIN
+# (e.g. agentStop → {cwd, sessionId, transcriptPath, …}). Use it to make
+# the banner specific instead of generic: derive the working-folder name
+# (a fallback label) and a one-line summary from the agent's last message.
+# Skipped for manual/interactive runs (stdin is a tty) or if python3 is
+# absent.
+FOLDER="" ; SUMMARY=""
+if [ ! -t 0 ] && command -v python3 >/dev/null 2>&1; then
+  HOOK_JSON="$(cat 2>/dev/null)"
+  if [ -n "$HOOK_JSON" ]; then
+    _enriched="$(printf '%s' "$HOOK_JSON" | python3 "$SCRIPT_DIR/enrich-context.py" 2>/dev/null)"
+    FOLDER="$(printf '%s\n' "$_enriched"  | sed -n '1p')"
+    SUMMARY="$(printf '%s\n' "$_enriched" | sed -n '2p')"
+  fi
+fi
+
+# ── 1. find the real terminal PTY ───────────────────────────────────
+# Our own stdout may be a sub-PTY owned by a host program (e.g. Copilot
+# CLI). Walk ancestors and take the first one whose controlling TTY is a
+# real, writable device — that is the terminal emulator's session PTY.
+find_term_pty() {
+  # Walk the WHOLE ancestor chain (us → … → login) and keep the
+  # outermost real, writable TTY we encounter. A host program such as
+  # the Copilot CLI runs the agent on its own captured sub-PTY; the real
+  # terminal emulator sits further up the chain on a different TTY. The
+  # last real TTY before the chain ends (e.g. an app server with no TTY)
+  # is the terminal's session PTY — the one the emulator actually reads.
+  local pid="$PPID" line ppid t i result=""
+  for i in $(seq 1 16); do
+    line="$(ps -o ppid=,tty=,comm= -p "$pid" 2>/dev/null)" || break
+    [ -z "$line" ] && break
+    ppid="$(awk '{print $1}' <<<"$line")"
+    t="$(awk '{print $2}'   <<<"$line")"
+    if [ -n "$t" ] && [ "$t" != "??" ] && [ "$t" != "?" ] && [ -w "/dev/$t" ]; then
+      result="/dev/$t"
+    fi
+    case "$ppid" in ''|0|1) break ;; esac
+    pid="$ppid"
+  done
+  if [ -n "$result" ]; then printf '%s' "$result"; return 0; fi
+  if [ -w "/dev/tty" ]; then printf '/dev/tty'; return 0; fi
+  printf ''; return 1
+}
+
+PTY="$(find_term_pty)"
+
+# --- whitespace trim (quote-safe; xargs would choke on apostrophes) -
+trim() { sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+
+# --- resolve the terminal tab/window title --------------------------
+# The label the user actually recognises is their terminal TAB title.
+# Ask the terminal app (via AppleScript) for the title of the tab/session
+# whose TTY matches our real terminal PTY — so we identify the EXACT
+# session that fired, even with several windows/tabs open. First use may
+# trigger a one-time macOS "Automation" permission prompt; on deny/other
+# terminals we silently fall back to the working-folder name.
+term_tab_title() {
+  [ "$(uname -s)" = "Darwin" ] || return 1
+  command -v osascript >/dev/null 2>&1 || return 1
+  [ -n "$PTY" ] && [ "$PTY" != "/dev/tty" ] || return 1
+  local out=""
+  case "${TERM_PROGRAM:-}" in
+    iTerm.app)
+      out="$(osascript 2>/dev/null <<OSA
+tell application "iTerm2"
+  repeat with w in windows
+    repeat with t in tabs of w
+      repeat with s in sessions of t
+        if (tty of s) is "$PTY" then return (name of s)
+      end repeat
+    end repeat
+  end repeat
+end tell
+return ""
+OSA
+)" ;;
+    Apple_Terminal)
+      out="$(osascript 2>/dev/null <<OSA
+tell application "Terminal"
+  repeat with w in windows
+    repeat with t in tabs of w
+      if (tty of t) is "$PTY" then
+        try
+          set ct to custom title of t
+          if ct is not "" then return ct
+        end try
+        return (name of w)
+      end if
+    end repeat
+  end repeat
+end tell
+return ""
+OSA
+)" ;;
+  esac
+  out="$(printf '%s' "$out" | tr '\r\n' '  ' | trim)"
+  [ -n "$out" ] || return 1
+  printf '%s' "$out"
+}
+
+# Final session label: the real tab title wins; otherwise the working
+# folder — but never just the home dir (its basename is your username,
+# which is noise).
+TAB="$(term_tab_title || true)"
+if [ -z "$TAB" ] && [ -n "$FOLDER" ] && [ "$FOLDER" != "$(basename "$HOME")" ]; then
+  TAB="$FOLDER"
+fi
+
+# ── 2. look up the category in categories.conf ──────────────────────
+emoji="" ; title="" ; subtitle="" ; sound=""
+if [ -f "$CONFIG" ]; then
+  while IFS='|' read -r c_key c_emoji c_title c_subtitle c_sound; do
+    c_key="$(printf '%s' "$c_key" | trim)"
+    case "$c_key" in ''|\#*) continue ;; esac
+    if [ "$c_key" = "$KEY" ]; then
+      emoji="$(printf '%s' "$c_emoji"    | trim)"
+      title="$(printf '%s' "$c_title"    | trim)"
+      subtitle="$(printf '%s' "$c_subtitle" | trim)"
+      sound="$(printf '%s' "$c_sound"    | trim)"
+      break
+    fi
+  done < "$CONFIG"
+fi
+
+# --- unknown category: graceful fallback ----------------------------
+if [ -z "$title" ]; then
+  title="Copilot" ; subtitle="$KEY" ; emoji="🔔" ; sound="Tink"
+fi
+
+# ── 3. compose the notification fields ──────────────────────────────
+# Lead with the terminal TAB name so you instantly know WHICH session
+# pinged you (the app name "Promptring" already shows above it). The
+# category line (e.g. "Copilot — Task complete") moves to the subtitle,
+# and the body carries the one-line summary of what the agent did.
+[ -z "$BODY" ] && [ -n "$SUMMARY" ] && BODY="$SUMMARY"
+
+if [ -n "$TAB" ]; then
+  title_line="$emoji $TAB"
+  subtitle_line="$title${subtitle:+ — $subtitle}"
+else
+  title_line="$emoji $title"
+  subtitle_line="$subtitle"
+fi
+
+# pretty single-line form (used by the OSC 777 text fallback)
+msg="$title_line"
+[ -n "$subtitle_line" ] && msg="$msg — $subtitle_line"
+[ -n "$BODY" ]          && msg="$msg: $BODY"
+
+# ── 4. deliver the banner ───────────────────────────────────────────
+# Primary path (macOS): the bundled Promptring.app posts a real desktop
+# notification banner via the modern UNUserNotificationCenter API. As a
+# signed .app with its own bundle identity it shows banners reliably from
+# ANY terminal — Terminal.app, iTerm2, VS Code, tmux — or none. This is
+# the only approach that works universally; escape sequences only reach
+# iTerm, and osascript banners are silently dropped by modern macOS.
+#
+# We launch it detached (nohup … &) so the hook returns instantly while
+# the app lingers briefly to let the system draw the banner.
+#
+# Fallbacks: on iTerm we also fire OSC 1337 RequestAttention (dock bounce)
+# as a bonus; on non-macOS we emit a generic OSC 777 notify + bell.
+ESC=$'\033' ; BEL=$'\007' ; ST=$'\033\\'
+
+delivered=0
+
+if [ "$(uname -s)" = "Darwin" ] && [ -x "$APP_BIN" ]; then
+  nohup "$APP_BIN" \
+    --title "$title_line" \
+    --subtitle "$subtitle_line" \
+    --message "$BODY" >/dev/null 2>&1 &
+  delivered=1
+  # iTerm bonus: bounce the dock icon to grab attention.
+  if [ "${TERM_PROGRAM:-}" = "iTerm.app" ] && [ -n "$PTY" ] && [ -w "$PTY" ]; then
+    printf '%s]1337;RequestAttention=yes%s' "$ESC" "$ST" > "$PTY" 2>/dev/null
+  fi
+fi
+
+# Last resort (e.g. Linux terminals, or app not built) — OSC 777 + bell.
+if [ "$delivered" -eq 0 ] && [ -n "$PTY" ] && [ -w "$PTY" ]; then
+  printf '%s]777;notify;%s;%s%s' "$ESC" "$emoji $title" "${subtitle}${BODY:+: $BODY}" "$ST" \
+    > "$PTY" 2>/dev/null
+  printf '%s' "$BEL" > "$PTY" 2>/dev/null
+fi
+
+# ── 5. per-category sound (on by default) ───────────────────────────
+# Plays the category's sound via the built-in `afplay`, layered on top
+# of the banner. Set COPILOT_NOTIFY_SOUND=0 to disable and rely solely on
+# the terminal's own notification sound.
+#
+# Sound resolution order (first hit wins) — keeps the package standalone
+# while still honouring plain system-sound names like "Glass":
+#   1. bundled    sounds/<sound>.{wav,aiff,mp3,m4a}   (ships with promptring)
+#   2. user       ~/Library/Sounds/<sound>.aiff
+#   3. system     /System/Library/Sounds/<sound>.aiff
+resolve_sound() {
+  local name="$1" d ext
+  for d in "$BUNDLE_SOUNDS" "$HOME/Library/Sounds" "/System/Library/Sounds"; do
+    for ext in wav aiff mp3 m4a caf; do
+      [ -f "$d/$name.$ext" ] && { printf '%s' "$d/$name.$ext"; return 0; }
+    done
+  done
+  return 1
+}
+
+case "${COPILOT_NOTIFY_SOUND:-1}" in
+  0|false|no|off) ;;  # disabled
+  *)
+    if [ "$sound" != "-" ] && [ -n "$sound" ] \
+       && [ "$(uname -s)" = "Darwin" ] && command -v afplay >/dev/null 2>&1; then
+      sfile="$(resolve_sound "$sound")" && afplay "$sfile" >/dev/null 2>&1 &
+    fi
+    ;;
+esac
+
+exit 0

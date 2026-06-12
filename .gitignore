@@ -1,0 +1,5 @@
+# Built per-machine by install.sh — never committed (ad-hoc signing is local)
+app/Promptring.app/
+
+# macOS cruft
+.DS_Store
