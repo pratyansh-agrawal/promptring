@@ -178,19 +178,21 @@ if [ -z "$title" ]; then
 fi
 
 # ── 3. compose the notification fields ──────────────────────────────
-# Lead with the terminal TAB name so you instantly know WHICH session
-# pinged you (the app name "Promptring" already shows above it). The
-# category line (e.g. "Copilot — Task complete") moves to the subtitle,
-# and the body carries the one-line summary of what the agent did.
+# Layout (mirrors the README banner design):
+#     promptring — <tab name>        ← title  (which session pinged you)
+#     <emoji> <status>               ← subtitle (e.g. "✅ Task complete")
+#     <summary>                      ← body    (one-line recap of the turn)
+# The category's "title" column ("Copilot") is intentionally unused now —
+# the app name already identifies the source; the status line carries the
+# meaning.
 [ -z "$BODY" ] && [ -n "$SUMMARY" ] && BODY="$SUMMARY"
 
 if [ -n "$TAB" ]; then
-  title_line="$emoji $TAB"
-  subtitle_line="$title${subtitle:+ — $subtitle}"
+  title_line="promptring — $TAB"
 else
-  title_line="$emoji $title"
-  subtitle_line="$subtitle"
+  title_line="promptring"
 fi
+subtitle_line="$emoji${subtitle:+ $subtitle}"
 
 # pretty single-line form (used by the OSC 777 text fallback)
 msg="$title_line"
@@ -228,7 +230,7 @@ fi
 
 # Last resort (e.g. Linux terminals, or app not built) — OSC 777 + bell.
 if [ "$delivered" -eq 0 ] && [ -n "$PTY" ] && [ -w "$PTY" ]; then
-  printf '%s]777;notify;%s;%s%s' "$ESC" "$emoji $title" "${subtitle}${BODY:+: $BODY}" "$ST" \
+  printf '%s]777;notify;%s;%s%s' "$ESC" "$title_line" "${subtitle_line}${BODY:+: $BODY}" "$ST" \
     > "$PTY" 2>/dev/null
   printf '%s' "$BEL" > "$PTY" 2>/dev/null
 fi

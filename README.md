@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/banner-hero.png" width="640" alt="promptring macOS notification banner">
+  <img src="docs/media/banner-demo.gif" width="640" alt="promptring banners cycling through task complete, needs input, and blocked states">
 </p>
 
 Terminal-native desktop notifications for the **GitHub Copilot CLI** — so you
@@ -25,10 +25,6 @@ terminal, including Terminal.app and iTerm2.
 🟡 Copilot — Needs your input: choose a database engine
 ⛔ Copilot — Blocked — needs you: build failed, missing env var
 ```
-
-<p align="center">
-  <img src="docs/media/banner-demo.gif" width="720" alt="promptring banners cycling through task complete, needs input, and blocked states">
-</p>
 
 
 ## Install
