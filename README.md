@@ -69,7 +69,7 @@ rendered to `icon.icns` at build time) is the promptring "p" mark.
 
 ```sh
 # 1. Clone
-git clone https://github.com/<you>/promptring.git
+git clone https://github.com/pratyansh-agrawal/promptring.git
 cd promptring
 
 # 2. Install — builds Promptring.app, registers it, symlinks the helper + hook
