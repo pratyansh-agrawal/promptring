@@ -59,7 +59,7 @@ cp -R "$REPO/sounds"         "$HOME_DIR/sounds"
 cp    "$REPO/categories.conf" "$HOME_DIR/categories.conf"
 cp    "$REPO/app/build.sh" "$REPO/app/Info.plist" "$REPO/app/icon.png" "$HOME_DIR/app/"
 cp -R "$REPO/app/src"        "$HOME_DIR/app/src"
-chmod +x "$HOME_DIR/bin/copilot-notify" "$HOME_DIR/bin/enrich-context.py" "$HOME_DIR/app/build.sh"
+chmod +x "$HOME_DIR/bin/copilot-notify" "$HOME_DIR/bin/enrich-context.py" "$HOME_DIR/bin/merge-hooks.py" "$HOME_DIR/app/build.sh"
 ok "copied notifier + config + sound"
 
 # ── 2. build the notification agent app (in place) ──────────────────
@@ -90,12 +90,12 @@ fi
 #    • notification elicitation_dialog → copilot-notify input
 step "Installing Copilot CLI notification hook"
 mkdir -p "$(dirname "$HOOKS_DST")"
-if [ ! -e "$HOOKS_DST" ] || [ -L "$HOOKS_DST" ] || grep -q "copilot-notify" "$HOOKS_DST" 2>/dev/null; then
-  rm -f "$HOOKS_DST"
-  cp "$HOOKS_SRC" "$HOOKS_DST"
-  ok "installed → $HOOKS_DST"
+#  Non-destructive merge: our entries are added/refreshed while any hooks
+#  the user already defined are preserved. Re-running never duplicates.
+if python3 "$HOME_DIR/bin/merge-hooks.py" add "$HOOKS_DST" "$HOOKS_SRC"; then
+  ok "merged hooks → $HOOKS_DST (your existing hooks preserved)"
 else
-  warn "$HOOKS_DST exists with other hooks — left untouched."
+  warn "$HOOKS_DST could not be merged (not valid JSON?) — left untouched."
   info "Merge the hooks from $HOOKS_SRC into it manually."
 fi
 

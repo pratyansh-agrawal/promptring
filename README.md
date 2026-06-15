@@ -117,8 +117,9 @@ export COPILOT_NOTIFY_SOUND=0
 ## Uninstall
 
 ```sh
-# remove the hook + unregister and delete the app
-rm -f ~/.copilot/hooks/hooks.json
+# remove only promptring's hooks (your other hooks are preserved),
+# then unregister and delete the app
+python3 ~/.copilot/promptring/bin/merge-hooks.py remove ~/.copilot/hooks/hooks.json
 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
   -u "$HOME/.copilot/promptring/app/Promptring.app"
 rm -rf ~/.copilot/promptring
