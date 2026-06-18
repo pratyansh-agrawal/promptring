@@ -185,5 +185,41 @@ class MergeHooks(unittest.TestCase):
         self.assertTrue(mh._is_ours(entry))
 
 
+class InputRequestDetection(unittest.TestCase):
+    """agentStop 'done' must re-fire as 'input' when the agent is asking."""
+
+    def test_question_mark_tail_is_input(self):
+        self.assertTrue(pr.is_input_request("I built the module.\nWhich database should I use?"))
+
+    def test_offer_to_continue_is_input(self):
+        self.assertTrue(pr.is_input_request("Done with phase 1. Want me to start phase 2?"))
+
+    def test_direction_phrase_without_qmark(self):
+        self.assertTrue(pr.is_input_request("Finished the refactor. Let me know how you'd like to proceed."))
+        self.assertTrue(pr.is_input_request("Two options here. Your call."))
+
+    def test_plain_completion_is_not_input(self):
+        self.assertFalse(pr.is_input_request("All 19 tests passed and the build is green."))
+        self.assertFalse(pr.is_input_request("Fixed the bug and pushed the branch."))
+
+    def test_empty_is_not_input(self):
+        self.assertFalse(pr.is_input_request(""))
+        self.assertFalse(pr.is_input_request(None))
+
+    def test_early_question_does_not_trigger_on_completion(self):
+        # a question buried far above a long completion tail should not flip it
+        msg = ("Should I have used Postgres? I went with SQLite.\n"
+               + "\n".join(f"Step {i} done." for i in range(1, 12))
+               + "\nEverything is committed and the suite is green.")
+        self.assertFalse(pr.is_input_request(msg))
+
+    def test_toggle_env_disables(self):
+        os.environ["PROMPTRING_AUTO_INPUT"] = "0"
+        self.assertFalse(pr.autoinput_enabled())
+        os.environ["PROMPTRING_AUTO_INPUT"] = "1"
+        self.assertTrue(pr.autoinput_enabled())
+        del os.environ["PROMPTRING_AUTO_INPUT"]
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

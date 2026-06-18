@@ -71,19 +71,69 @@ def read_payload():
 
 
 def enrich(payload):
-    """(folder, summary) derived from the hook payload. Both may be ''."""
+    """(folder, summary, last_msg) derived from the hook payload.
+
+    `last_msg` is the raw final assistant message (used to tell whether the
+    agent is asking the user for direction vs. reporting completion).
+    Any field may be ''."""
     cwd = payload.get("cwd") or ""
     folder = os.path.basename(cwd.rstrip("/\\")) if cwd else ""
-    summary = ""
+    summary, last_msg = "", ""
     if enrich_context is not None:
         sid = payload.get("session_id") or payload.get("sessionId") or ""
         tp  = payload.get("transcript_path") or payload.get("transcriptPath") or ""
         try:
-            summary = enrich_context.summarize(
-                enrich_context.last_assistant_message(tp, sid))
+            last_msg = enrich_context.last_assistant_message(tp, sid) or ""
+            summary = enrich_context.summarize(last_msg)
         except Exception:
-            summary = ""
-    return folder, summary
+            summary, last_msg = "", ""
+    return folder, summary, last_msg
+
+
+# ── intent: is the agent asking for direction, or reporting done? ────
+#  The Copilot CLI fires `agentStop` on *every* turn-end with a hardcoded
+#  stop reason, so it can't tell us "done" from "waiting on you". We infer
+#  it from the agent's closing words instead — a question near the end, or
+#  an explicit ask for direction, means it's really an input request (this
+#  fires even under `--yolo`, where no permission prompt is ever shown).
+_ASK_PATTERNS = re.compile(
+    r"let me know|"
+    r"would you like|do you want|want me to|"
+    r"shall i|should i\b|"
+    r"which (?:option|one|of|would|do you)|"
+    r"please (?:confirm|advise|choose|pick|let me know|clarify|specify)|"
+    r"could you (?:clarify|confirm|tell me|specify)|"
+    r"can you (?:confirm|clarify|tell me|specify)|"
+    r"how would you like|what would you (?:like|prefer)|"
+    r"your call|up to you|pick one|"
+    r"waiting for your|awaiting your|"
+    r"need(?:s)? your (?:input|direction|decision|guidance|call)",
+    re.IGNORECASE,
+)
+
+
+def _closing(text, lines=4, chars=320):
+    """The tail of the message — where a question usually lives."""
+    text = re.sub(r"```.*?```", "", text or "", flags=re.DOTALL)
+    segs = [l.strip() for l in text.splitlines() if l.strip()]
+    return (" ".join(segs[-lines:]) if segs else "")[-chars:]
+
+
+def is_input_request(text):
+    """True when the agent's final message is asking the user for direction."""
+    if not text:
+        return False
+    tail = _closing(text)
+    if not tail:
+        return False
+    if "?" in tail[-220:]:
+        return True
+    return bool(_ASK_PATTERNS.search(tail))
+
+
+def autoinput_enabled():
+    return os.environ.get("PROMPTRING_AUTO_INPUT", "1").lower() not in (
+        "0", "false", "no", "off")
 
 
 # ── session label (the human-recognisable terminal tab) ─────────────
@@ -404,8 +454,12 @@ def main(argv):
     key = argv[1]
     message = argv[2] if len(argv) > 2 else ""
     payload = read_payload()
-    folder, summary = enrich(payload)
+    folder, summary, last_msg = enrich(payload)
     label = session_label(folder)
+    # agentStop fires "done" on every turn-end; if the agent actually closed
+    # by asking the user for direction, deliver it as an input request instead.
+    if key == "done" and not message and autoinput_enabled() and is_input_request(last_msg):
+        key = "input"
     spec = compose(key, message, label, summary)
     if os.environ.get("PROMPTRING_DRYRUN", "").lower() in ("1", "true", "yes"):
         spec["platform"] = ("macos" if IS_MACOS else "windows" if IS_WINDOWS
