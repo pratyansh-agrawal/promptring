@@ -44,6 +44,8 @@ $CopilotDir = Join-Path $env:USERPROFILE '.copilot'
 $HomeDir    = Join-Path $CopilotDir 'promptring'
 $HooksDst   = Join-Path $CopilotDir 'hooks\hooks.json'
 $HooksSrc   = Join-Path $Repo 'hooks.json'
+$Instructions      = Join-Path $CopilotDir 'copilot-instructions.md'
+$InstructionsBlock = Join-Path $Repo 'copilot-instructions.block.md'
 $Aumid      = 'com.promptring.notifier'
 Write-Info "repo: $Repo"
 
@@ -159,6 +161,37 @@ if ($LASTEXITCODE -eq 0) {
 # --- 6. clean up legacy install ------------------------------------------
 $legacyWin = Join-Path $CopilotDir 'promptring-win'
 if (Test-Path $legacyWin) { Remove-Item $legacyWin -Recurse -Force -ErrorAction SilentlyContinue; Write-Info "removed legacy ~/.copilot/promptring-win" }
+
+# --- 7. install the promptring instruction block -------------------------
+#  The hooks cover permission_prompt, elicitation_dialog and agentStop, but
+#  the Copilot CLI fires NO hookable event when the agent pauses mid-turn on
+#  the built-in `ask_user` tool — so under --yolo a decision prompt shows no
+#  banner. We close that gap by instructing the agent to fire the notifier
+#  itself before calling ask_user. The block is fenced by markers so it can
+#  be refreshed/removed cleanly; its text is the single shared source in
+#  copilot-instructions.block.md.
+Write-Step "Installing promptring instruction block"
+New-Item -ItemType Directory -Force (Split-Path -Parent $Instructions) | Out-Null
+$existing = if (Test-Path $Instructions) { Get-Content -LiteralPath $Instructions } else { @() }
+# strip any previous promptring block, preserving your other content
+$kept = New-Object System.Collections.Generic.List[string]
+$skip = $false
+foreach ($line in $existing) {
+  if ($line -match 'promptring:start') { $skip = $true; continue }
+  if ($skip) { if ($line -match 'promptring:end') { $skip = $false }; continue }
+  $kept.Add($line)
+}
+# drop trailing blank lines so the appended block sits cleanly
+while ($kept.Count -gt 0 -and [string]::IsNullOrWhiteSpace($kept[$kept.Count - 1])) {
+  $kept.RemoveAt($kept.Count - 1)
+}
+$block = Get-Content -LiteralPath $InstructionsBlock
+$out = New-Object System.Collections.Generic.List[string]
+$out.AddRange($kept)
+if ($kept.Count -gt 0) { $out.Add('') }
+$out.AddRange([string[]]$block)
+Set-Content -LiteralPath $Instructions -Value $out -Encoding UTF8
+Write-Ok "instruction block written -> $Instructions"
 
 # --- done ----------------------------------------------------------------
 if ($NoTest) {

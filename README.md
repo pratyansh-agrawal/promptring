@@ -102,6 +102,16 @@ Once installed, the Copilot CLI fires notifications automatically on its own
 lifecycle events — when an agent finishes, needs your approval, or asks a
 question. No further action needed.
 
+The installer also writes a fenced, mandatory block into
+`~/.copilot/copilot-instructions.md` (shared source:
+[`copilot-instructions.block.md`](./copilot-instructions.block.md)). The
+Copilot CLI fires no hookable event when an agent pauses on the built-in
+`ask_user` tool, so under `--yolo` a decision prompt would otherwise show no
+banner — the block requires the agent to fire the `input` banner itself right
+before it asks you to decide (with the correct command for each OS). All
+installers (macOS, Linux, WSL, Windows) write the same block; re-running
+refreshes it in place and keeps your other instructions.
+
 To fire one manually:
 
 ```sh

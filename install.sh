@@ -36,6 +36,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COPILOT_DIR="$HOME/.copilot"
 HOME_DIR="$COPILOT_DIR/promptring"          # self-contained install home
 INSTRUCTIONS="$COPILOT_DIR/copilot-instructions.md"
+INSTRUCTIONS_BLOCK="$REPO/copilot-instructions.block.md"
 HOOKS_SRC="$REPO/hooks.json"
 HOOKS_DST="$COPILOT_DIR/hooks/hooks.json"
 LEGACY_NOTIFY="$COPILOT_DIR/notify"
@@ -161,19 +162,31 @@ fi
 [ -d "$LEGACY_NOTIFY" ] && { rm -rf "$LEGACY_NOTIFY"; info "removed legacy ~/.copilot/notify"; }
 [ -d "$LEGACY_WIN" ]    && { rm -rf "$LEGACY_WIN";    info "removed legacy ~/.copilot/promptring-win"; }
 
-# ── 5. remove any obsolete promptring instruction block ─────────────
-if [ -e "$INSTRUCTIONS" ] && grep -qF "promptring:start" "$INSTRUCTIONS"; then
-  awk '
-    index($0, "promptring:start") { skip = 1; next }
-    skip && index($0, "promptring:end") { skip = 0; next }
-    skip { next }
-    { print }
-  ' "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
-  if [ ! -s "$INSTRUCTIONS" ] || ! grep -q '[^[:space:]]' "$INSTRUCTIONS"; then
-    rm -f "$INSTRUCTIONS"
-  fi
-  info "removed obsolete instruction block"
-fi
+# ── 5. install the promptring instruction block ─────────────────────
+#  The hooks cover permission_prompt, elicitation_dialog and agentStop, but
+#  the Copilot CLI fires NO hookable event when the agent pauses mid-turn on
+#  the built-in `ask_user` tool — so under `--yolo` a decision/direction
+#  prompt shows no banner and the user can't tell the agent is waiting. We
+#  close that gap by instructing the agent to fire the notifier itself right
+#  before it calls `ask_user`. The block is fenced by markers so it can be
+#  refreshed or removed cleanly without disturbing your other instructions,
+#  and its text is the single shared source in copilot-instructions.block.md.
+step "Installing promptring instruction block"
+mkdir -p "$(dirname "$INSTRUCTIONS")"
+[ -e "$INSTRUCTIONS" ] || : > "$INSTRUCTIONS"
+# strip any previous promptring block, preserving your other content
+awk '
+  index($0, "promptring:start") { skip = 1; next }
+  skip && index($0, "promptring:end") { skip = 0; next }
+  skip { next }
+  { print }
+' "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
+# drop trailing blank lines so the appended block sits cleanly
+awk 'NF{p=NR} {a[NR]=$0} END{for(i=1;i<=p;i++) print a[i]}' \
+  "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
+[ -s "$INSTRUCTIONS" ] && printf '\n' >> "$INSTRUCTIONS"
+cat "$INSTRUCTIONS_BLOCK" >> "$INSTRUCTIONS"
+ok "instruction block written → $INSTRUCTIONS"
 
 # ── done ────────────────────────────────────────────────────────────
 printf '\n%s✓ promptring installed%s\n' "$B$G" "$X"
