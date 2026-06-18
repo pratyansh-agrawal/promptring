@@ -161,19 +161,52 @@ fi
 [ -d "$LEGACY_NOTIFY" ] && { rm -rf "$LEGACY_NOTIFY"; info "removed legacy ~/.copilot/notify"; }
 [ -d "$LEGACY_WIN" ]    && { rm -rf "$LEGACY_WIN";    info "removed legacy ~/.copilot/promptring-win"; }
 
-# ── 5. remove any obsolete promptring instruction block ─────────────
-if [ -e "$INSTRUCTIONS" ] && grep -qF "promptring:start" "$INSTRUCTIONS"; then
-  awk '
-    index($0, "promptring:start") { skip = 1; next }
-    skip && index($0, "promptring:end") { skip = 0; next }
-    skip { next }
-    { print }
-  ' "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
-  if [ ! -s "$INSTRUCTIONS" ] || ! grep -q '[^[:space:]]' "$INSTRUCTIONS"; then
-    rm -f "$INSTRUCTIONS"
-  fi
-  info "removed obsolete instruction block"
-fi
+# ── 5. install the promptring instruction block ─────────────────────
+#  The hooks cover permission_prompt, elicitation_dialog and agentStop, but
+#  the Copilot CLI fires NO hookable event when the agent pauses mid-turn on
+#  the built-in `ask_user` tool — so under `--yolo` a decision/direction
+#  prompt shows no banner and the user can't tell the agent is waiting. We
+#  close that gap by asking the agent to fire the notifier itself right
+#  before it calls `ask_user`. The block is fenced by markers so it can be
+#  refreshed or removed cleanly without disturbing your other instructions.
+step "Installing promptring instruction block"
+mkdir -p "$(dirname "$INSTRUCTIONS")"
+[ -e "$INSTRUCTIONS" ] || : > "$INSTRUCTIONS"
+# strip any previous promptring block, preserving your other content
+awk '
+  index($0, "promptring:start") { skip = 1; next }
+  skip && index($0, "promptring:end") { skip = 0; next }
+  skip { next }
+  { print }
+' "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
+# drop trailing blank lines so the appended block sits cleanly
+awk 'NF{p=NR} {a[NR]=$0} END{for(i=1;i<=p;i++) print a[i]}' \
+  "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
+[ -s "$INSTRUCTIONS" ] && printf '\n' >> "$INSTRUCTIONS"
+cat >> "$INSTRUCTIONS" <<'PROMPTRING_BLOCK'
+<!-- promptring:start -->
+## promptring — notify when you are waiting on the user
+
+A notifier (promptring) fires a desktop banner on the user's machine through
+the Copilot CLI hooks. Those hooks already cover tool-permission prompts, MCP
+elicitations, and the end of every turn — you do not act for those.
+
+They do **not** cover the built-in `ask_user` tool. When you pause mid-turn to
+ask the user to decide, choose between options, or clarify something, the CLI
+emits no hookable event, so under `--yolo` the user gets **no banner** and may
+not notice you are blocked on them.
+
+To close that gap: **immediately before you call `ask_user`** (or otherwise
+stop and wait for a user decision), run this command first —
+
+    "$HOME/.copilot/promptring/bin/promptring.py" input 'Needs your input'
+
+Replace the message with a short hint of what you need when it helps. Only do
+this for genuine decision/direction prompts; skip it for permission approvals
+and for simply ending your turn (promptring already handles both).
+<!-- promptring:end -->
+PROMPTRING_BLOCK
+ok "instruction block written → $INSTRUCTIONS"
 
 # ── done ────────────────────────────────────────────────────────────
 printf '\n%s✓ promptring installed%s\n' "$B$G" "$X"
