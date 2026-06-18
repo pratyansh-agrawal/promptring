@@ -12,9 +12,9 @@
   <a href="#install">Install</a> &nbsp;·&nbsp;
   <a href="#usage">Usage</a>
   <br><br>
-  <img src="https://img.shields.io/badge/platform-macOS-000?logo=apple" alt="macOS">
+  <img src="https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux-000" alt="macOS · Windows · Linux">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-  <img src="https://img.shields.io/badge/dependencies-none-brightgreen" alt="Zero dependencies">
+  <img src="https://img.shields.io/badge/dependencies-python3-brightgreen" alt="Only python3">
 </p>
 
 <p align="center">
@@ -23,12 +23,15 @@
 
 Terminal-native desktop notifications for the **GitHub Copilot CLI** — so you
 know the moment an agent finishes a task, needs your input, or hits a blocker,
-even when you've switched to another app.
+even when you've switched to another app. Works on **macOS, Windows, Linux and
+WSL** from a single, OS-independent codebase.
 
-No Homebrew, no extra packages, no `osascript` hacks. promptring ships a tiny,
-self-contained macOS notification agent (built locally from source) plus the
-built-in `afplay` for sound — real desktop **banners** that work from **any**
-terminal, including Terminal.app and iTerm2.
+No Homebrew, no extra packages, no `osascript` hacks. One small Python
+orchestrator owns all the logic; each OS only handles the final banner with its
+own native delivery — a self-contained signed app on macOS, a WinRT toast +
+taskbar badge on Windows, `notify-send` on Linux, and a Windows-side toast
+bridge under WSL. The look, the horn icon, and the bundled **tring** chime are
+identical everywhere.
 
 ```
 ✅ Copilot — Task complete: rebuilt the auth module
@@ -39,32 +42,59 @@ terminal, including Terminal.app and iTerm2.
 
 ## Install
 
-**Prerequisites:** macOS · **Xcode Command Line Tools** (`xcode-select
---install`) · `git`, `bash`.
+promptring works the same on every platform — one `python3` dependency, one
+install dir (`~/.copilot/promptring`), one `hooks.json` that carries both a
+`bash` and a `powershell` command so the Copilot CLI picks the right one per OS.
+
+### macOS · Linux · WSL
+
+**Prerequisites:** `python3`, `git`, `bash`.
+macOS also needs **Xcode Command Line Tools** (`xcode-select --install`).
+Linux also needs **`notify-send`** (`sudo apt install libnotify-bin`).
 
 ```sh
 # 1. Clone
 git clone https://github.com/pratyansh-agrawal/promptring.git
 cd promptring
 
-# 2. Install
+# 2. Install (auto-detects macOS / Linux / WSL)
 ./install.sh
 
-# 3. Verify (expect: a desktop banner + the bundled tring.mp3)
-~/.copilot/promptring/bin/copilot-notify done "promptring works"
+# 3. Verify (expect: a desktop banner + the bundled tring chime)
+~/.copilot/promptring/bin/promptring.py done "promptring works"
 
 # 4. Start / restart a Copilot CLI session so it loads the hook
 copilot
 ```
 
-On the **first banner**, macOS asks for notification permission for
+### Windows
+
+**Prerequisites:** **Python 3** (from python.org, "Add to PATH"), Windows
+Terminal recommended.
+
+```powershell
+# 1. Clone
+git clone https://github.com/pratyansh-agrawal/promptring.git
+cd promptring
+
+# 2. Install (registers the toast app identity + merges hooks)
+powershell -ExecutionPolicy Bypass -File install.ps1
+
+# 3. Verify (expect: a toast + taskbar badge + tring chime)
+python "$env:USERPROFILE\.copilot\promptring\bin\promptring.py" done "promptring works"
+
+# 4. Restart your Copilot CLI session
+copilot
+```
+
+On macOS, the **first banner** triggers a notification-permission prompt for
 Promptring — click **Allow**. Then, one time per machine, open **System
 Settings → Notifications → Promptring** and set its alert style to **Banners**
 (macOS sometimes defaults new apps to "None"/Notification Center only).
 
-Everything installs under `~/.copilot/promptring`, so once `install.sh` finishes
-you can safely **delete or move the cloned folder**. Restart Copilot after
-installing so the hook loads (it's read fresh at session start).
+Everything installs under `~/.copilot/promptring`, so once the installer
+finishes you can safely **delete or move the cloned folder**. Restart Copilot
+after installing so the hook loads (it's read fresh at session start).
 
 ## Usage
 
@@ -75,7 +105,7 @@ question. No further action needed.
 To fire one manually:
 
 ```sh
-~/.copilot/promptring/bin/copilot-notify <category> [message]
+~/.copilot/promptring/bin/promptring.py <category> [message]
 ```
 
 | Category | Emoji | Meaning |
@@ -107,23 +137,47 @@ bundled file first, then `~/Library/Sounds`, then macOS system sounds (`Glass`,
 export COPILOT_NOTIFY_SOUND=0
 ```
 
+## Platform support
+
+| OS          | Delivery backend                                  | Sound                          | Session label             | Status            |
+| ----------- | ------------------------------------------------- | ------------------------------ | ------------------------- | ----------------- |
+| **macOS**   | signed `UNUserNotificationCenter` app (`Promptring.app`) | `afplay`                | iTerm/Terminal tab title  | ✅ reference       |
+| **Windows** | WinRT toast (PS 5.1) + taskbar flash & badge      | `MediaPlayer`                  | Windows Terminal title    | ⚠ needs validation |
+| **Linux**   | `notify-send` (libnotify)                         | `paplay`/`aplay`/`canberra`    | working-folder fallback   | ⚠ needs validation |
+| **WSL**     | bridges to the Windows toast via `powershell.exe` | Windows-side chime             | Windows Terminal title    | ⚠ needs validation |
+
+All platforms share the same title/subtitle/body layout, the horn icon, and the
+bundled `tring` chime. One Python orchestrator (`bin/promptring.py`) composes the
+banner; only the final delivery is native.
+
 ## Requirements
 
-- macOS (uses a signed `UNUserNotificationCenter` app + `afplay`)
-- **Xcode Command Line Tools** (`swiftc`, `codesign`, `sips`, `iconutil`)
-- `python3` (ships with the CLT)
-- `bash`, `ps`, `sed`, `awk` (all standard)
+- **`python3`** on every OS (the single orchestrator). On macOS it ships with the
+  Command Line Tools; on Windows install from python.org with "Add to PATH".
+- **macOS:** Xcode Command Line Tools (`swiftc`, `codesign`, `sips`, `iconutil`).
+- **Windows:** Windows PowerShell 5.1 (built in) for the WinRT toast.
+- **Linux:** `notify-send` (`libnotify-bin`); a sound player (`paplay`/`aplay`).
+- **WSL:** a Windows host (the bridge posts the toast on the Windows side).
 
 ## Uninstall
 
+The hook removal is identical on every OS (your other hooks are preserved):
+
 ```sh
-# remove only promptring's hooks (your other hooks are preserved),
-# then unregister and delete the app
+# macOS / Linux / WSL
 python3 ~/.copilot/promptring/bin/merge-hooks.py remove ~/.copilot/hooks/hooks.json
-/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
-  -u "$HOME/.copilot/promptring/app/Promptring.app"
 rm -rf ~/.copilot/promptring
+# macOS also: unregister the app
+/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
+  -u "$HOME/.copilot/promptring/platform/macos/Promptring.app"
 ```
 
-You can also remove Promptring from **System Settings → Notifications** after
-unregistering.
+```powershell
+# Windows
+python "$env:USERPROFILE\.copilot\promptring\bin\merge-hooks.py" remove "$env:USERPROFILE\.copilot\hooks\hooks.json"
+Remove-Item -Recurse -Force "$env:USERPROFILE\.copilot\promptring"
+Remove-Item -Recurse -Force "HKCU:\Software\Classes\AppUserModelId\com.promptring.notifier"
+```
+
+On macOS you can also remove Promptring from **System Settings → Notifications**
+after unregistering.

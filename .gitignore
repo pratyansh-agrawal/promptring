@@ -3,3 +3,6 @@ app/Promptring.app/
 
 # macOS cruft
 .DS_Store
+platform/macos/Promptring.app/
+__pycache__/
+*.bak

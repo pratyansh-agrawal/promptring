@@ -1,18 +1,20 @@
 #!/bin/bash
 # ════════════════════════════════════════════════════════════════════
-#  promptring — installer
+#  promptring — installer  (macOS · Linux · WSL)
 # ════════════════════════════════════════════════════════════════════
-#  1. Copies the notifier, config and sound into ~/.copilot/promptring and
-#     builds the Promptring.app notification agent there (a signed .app —
-#     the only thing that shows banners reliably from any terminal).
-#  2. Registers the app with LaunchServices so macOS grants it a
-#     notification identity (appears in System Settings → Notifications).
-#  3. Installs the Copilot CLI notification hook into ~/.copilot/hooks.
+#  Copies the cross-platform notifier into ~/.copilot/promptring and wires
+#  it into the Copilot CLI hooks (your existing hooks are preserved).
 #
-#  Everything lives under ~/.copilot, so the clone is no longer needed
-#  after install — you can delete or move it freely.
+#  One Python orchestrator (bin/promptring.py) drives every OS; only the
+#  delivery is native:
+#    • macOS — builds + registers the signed Promptring.app (banners from
+#      any terminal) and plays the chime via afplay.
+#    • Linux — delivers via notify-send (libnotify) + paplay/aplay.
+#    • WSL   — sets up a bridge to the Windows toast (a real Windows banner
+#      from inside WSL), since WSL has no notification daemon of its own.
 #
-#  Idempotent: re-running just refreshes everything in place.
+#  Everything lives under ~/.copilot/promptring, so the clone can be
+#  deleted or moved afterward. Idempotent: re-running refreshes in place.
 #
 #  Usage:   ./install.sh
 # ════════════════════════════════════════════════════════════════════
@@ -36,10 +38,17 @@ HOME_DIR="$COPILOT_DIR/promptring"          # self-contained install home
 INSTRUCTIONS="$COPILOT_DIR/copilot-instructions.md"
 HOOKS_SRC="$REPO/hooks.json"
 HOOKS_DST="$COPILOT_DIR/hooks/hooks.json"
-APP="$HOME_DIR/app/Promptring.app"
-APP_BIN="$APP/Contents/MacOS/promptring"
-LEGACY_NOTIFY="$COPILOT_DIR/notify"         # pre-1.x symlink location
+LEGACY_NOTIFY="$COPILOT_DIR/notify"
+LEGACY_WIN="$COPILOT_DIR/promptring-win"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+AUMID="com.promptring.notifier"
+
+# ── detect platform ─────────────────────────────────────────────────
+OS="$(uname -s)"
+IS_WSL=0
+if [ "$OS" = "Linux" ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  IS_WSL=1
+fi
 
 printf '%s' "$B$C"
 cat <<'BANNER'
@@ -49,49 +58,98 @@ cat <<'BANNER'
 BANNER
 printf '%s' "$X"
 info "repo: $REPO"
+case "$OS" in
+  Darwin) info "platform: macOS" ;;
+  Linux)  [ "$IS_WSL" = 1 ] && info "platform: WSL (Windows bridge)" || info "platform: Linux" ;;
+  *)      warn "platform: $OS (unsupported — bell/OSC fallback only)" ;;
+esac
 
-# ── 1. copy the runtime into ~/.copilot/promptring ─────────────────
+# ── python3 is required (single orchestrator) ───────────────────────
+if ! command -v python3 >/dev/null 2>&1; then
+  warn "python3 not found — promptring's orchestrator requires it."
+  info "Install python3 and re-run. (macOS: 'xcode-select --install'; Debian/Ubuntu: 'sudo apt install python3')"
+  exit 1
+fi
+
+# ── 1. copy the runtime into ~/.copilot/promptring ──────────────────
 step "Installing into $HOME_DIR"
 rm -rf "$HOME_DIR"
 mkdir -p "$HOME_DIR/app"
 cp -R "$REPO/bin"            "$HOME_DIR/bin"
 cp -R "$REPO/sounds"         "$HOME_DIR/sounds"
+cp -R "$REPO/platform"       "$HOME_DIR/platform"
 cp    "$REPO/categories.conf" "$HOME_DIR/categories.conf"
-cp    "$REPO/app/build.sh" "$REPO/app/Info.plist" "$REPO/app/icon.png" "$HOME_DIR/app/"
-cp -R "$REPO/app/src"        "$HOME_DIR/app/src"
-chmod +x "$HOME_DIR/bin/copilot-notify" "$HOME_DIR/bin/enrich-context.py" "$HOME_DIR/bin/merge-hooks.py" "$HOME_DIR/app/build.sh"
-ok "copied notifier + config + sound"
+cp    "$REPO/app/icon.png" "$REPO/app/icon.svg" "$HOME_DIR/app/"
+find "$HOME_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+chmod +x "$HOME_DIR/bin/promptring.py" "$HOME_DIR/bin/enrich_context.py" \
+         "$HOME_DIR/bin/merge-hooks.py" "$HOME_DIR/platform/macos/build.sh" 2>/dev/null || true
+ok "copied orchestrator + config + sound + platform backends"
 
-# ── 2. build the notification agent app (in place) ──────────────────
-step "Building Promptring.app (notification agent)"
-if [ "$(uname -s)" != "Darwin" ]; then
-  warn "Not macOS — skipping app build. Bell/OSC fallback will be used."
-elif bash "$HOME_DIR/app/build.sh" >/dev/null 2>&1; then
-  ok "built  → $APP"
-else
-  warn "Build failed. Ensure Xcode Command Line Tools are installed:"
-  info "    xcode-select --install"
-  info "Continuing — bell/OSC fallback will be used until the app builds."
+# ── 2. platform-specific delivery setup ─────────────────────────────
+if [ "$OS" = "Darwin" ]; then
+  step "Building Promptring.app (notification agent)"
+  if bash "$HOME_DIR/platform/macos/build.sh" >/dev/null 2>&1; then
+    APP="$HOME_DIR/platform/macos/Promptring.app"
+    ok "built  → $APP"
+    if [ -x "$APP/Contents/MacOS/promptring" ] && [ -x "$LSREGISTER" ]; then
+      step "Registering app with LaunchServices"
+      "$LSREGISTER" -f "$APP" 2>/dev/null || true
+      ok "registered $AUMID"
+    fi
+  else
+    warn "Build failed. Ensure Xcode Command Line Tools are installed:"
+    info "    xcode-select --install"
+    info "Continuing — bell/OSC fallback will be used until the app builds."
+  fi
+
+elif [ "$IS_WSL" = 1 ]; then
+  step "Setting up the WSL → Windows toast bridge"
+  if command -v powershell.exe >/dev/null 2>&1; then
+    WIN_USERPROFILE="$(powershell.exe -NoProfile -Command '$env:USERPROFILE' 2>/dev/null | tr -d '\r')"
+    if [ -n "$WIN_USERPROFILE" ]; then
+      WIN_HOME_WSL="$(wslpath "$WIN_USERPROFILE" 2>/dev/null)/.copilot/promptring"
+      mkdir -p "$WIN_HOME_WSL/platform/windows" "$WIN_HOME_WSL/app" "$WIN_HOME_WSL/sounds"
+      cp -R "$HOME_DIR/platform/windows/." "$WIN_HOME_WSL/platform/windows/"
+      cp    "$HOME_DIR/app/icon.png"       "$WIN_HOME_WSL/app/"
+      cp -R "$HOME_DIR/sounds/."           "$WIN_HOME_WSL/sounds/"
+      # register the toast app identity (name + horn icon) on the Windows side
+      WIN_ICON="$(wslpath -w "$WIN_HOME_WSL/app/icon.png" 2>/dev/null)"
+      powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
+        \$k='HKCU:\\Software\\Classes\\AppUserModelId\\$AUMID';
+        if (-not (Test-Path \$k)) { New-Item -Path \$k -Force | Out-Null }
+        New-ItemProperty -Path \$k -Name 'DisplayName' -Value 'promptring' -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path \$k -Name 'IconUri' -Value '$WIN_ICON' -PropertyType String -Force | Out-Null
+      " >/dev/null 2>&1 || true
+      ok "bridge installed → $WIN_HOME_WSL"
+      info "promptring runs the Windows toast via powershell.exe from inside WSL."
+    else
+      warn "Could not resolve the Windows user profile; bridge not set up."
+    fi
+  else
+    warn "powershell.exe not reachable from WSL — cannot bridge to Windows toasts."
+    info "Ensure WSL interop is enabled (default)."
+  fi
+
+elif [ "$OS" = "Linux" ]; then
+  step "Checking Linux notification stack"
+  if command -v notify-send >/dev/null 2>&1; then
+    ok "notify-send found"
+  else
+    warn "notify-send not found — banners won't show until you install it."
+    info "Debian/Ubuntu: sudo apt install libnotify-bin   ·   Fedora: sudo dnf install libnotify"
+  fi
+  if command -v paplay >/dev/null 2>&1 || command -v aplay >/dev/null 2>&1; then
+    ok "audio player found (paplay/aplay)"
+  else
+    info "No paplay/aplay found — the chime will be skipped (banner still shows)."
+  fi
 fi
 
-# ── 3. register the app with LaunchServices ─────────────────────────
-if [ -x "$APP_BIN" ] && [ -x "$LSREGISTER" ]; then
-  step "Registering app with LaunchServices"
-  "$LSREGISTER" -f "$APP" 2>/dev/null || true
-  ok "registered com.promptring.notifier"
-fi
-
-# ── 4. install the notification hook ────────────────────────────────
-#  Copilot CLI reads ~/.copilot/hooks/hooks.json on every session start
-#  and fires the notifier directly on its own events — no dependence on
-#  the model remembering to run a command.
-#    • agentStop                       → copilot-notify done
-#    • notification permission_prompt  → copilot-notify input
-#    • notification elicitation_dialog → copilot-notify input
-step "Installing Copilot CLI notification hook"
+# ── 3. merge the Copilot CLI notification hooks ─────────────────────
+#  Non-destructive: our entries are added/refreshed while any hooks you
+#  already defined are preserved. Re-running never duplicates.
+step "Installing Copilot CLI notification hooks"
 mkdir -p "$(dirname "$HOOKS_DST")"
-#  Non-destructive merge: our entries are added/refreshed while any hooks
-#  the user already defined are preserved. Re-running never duplicates.
 if python3 "$HOME_DIR/bin/merge-hooks.py" add "$HOOKS_DST" "$HOOKS_SRC"; then
   ok "merged hooks → $HOOKS_DST (your existing hooks preserved)"
 else
@@ -99,15 +157,11 @@ else
   info "Merge the hooks from $HOOKS_SRC into it manually."
 fi
 
-# ── 5. clean up legacy install (pre-1.x symlink layout) ─────────────
-if [ -d "$LEGACY_NOTIFY" ]; then
-  rm -rf "$LEGACY_NOTIFY"
-  info "removed legacy ~/.copilot/notify (symlink layout)"
-fi
+# ── 4. clean up legacy installs ─────────────────────────────────────
+[ -d "$LEGACY_NOTIFY" ] && { rm -rf "$LEGACY_NOTIFY"; info "removed legacy ~/.copilot/notify"; }
+[ -d "$LEGACY_WIN" ]    && { rm -rf "$LEGACY_WIN";    info "removed legacy ~/.copilot/promptring-win"; }
 
-# ── 6. remove any obsolete promptring instruction block ─────────────
-#  The hook supersedes the old instruction-based firing; leaving the
-#  block in would double-fire, so strip it.
+# ── 5. remove any obsolete promptring instruction block ─────────────
 if [ -e "$INSTRUCTIONS" ] && grep -qF "promptring:start" "$INSTRUCTIONS"; then
   awk '
     index($0, "promptring:start") { skip = 1; next }
@@ -117,10 +171,8 @@ if [ -e "$INSTRUCTIONS" ] && grep -qF "promptring:start" "$INSTRUCTIONS"; then
   ' "$INSTRUCTIONS" > "$INSTRUCTIONS.tmp" && mv "$INSTRUCTIONS.tmp" "$INSTRUCTIONS"
   if [ ! -s "$INSTRUCTIONS" ] || ! grep -q '[^[:space:]]' "$INSTRUCTIONS"; then
     rm -f "$INSTRUCTIONS"
-    info "removed obsolete instruction block (file emptied → deleted)"
-  else
-    info "removed obsolete instruction block (kept your other content)"
   fi
+  info "removed obsolete instruction block"
 fi
 
 # ── done ────────────────────────────────────────────────────────────
@@ -129,10 +181,13 @@ cat <<EOF
 
 ${B}Next steps${X}
   ${DIM}1.${X} Fire a test banner:
-       ${C}$HOME_DIR/bin/copilot-notify done "promptring works"${X}
-  ${DIM}2.${X} First time only: macOS shows a ${B}Promptring${X} permission prompt → ${B}Allow${X},
-       then set its alert style to ${B}Banners${X} in System Settings → Notifications.
-  ${DIM}3.${X} Restart your Copilot CLI session so the hook loads.
-
-${DIM}Everything lives under ~/.copilot/promptring now — you can safely delete or move this clone.${X}
+       ${C}$HOME_DIR/bin/promptring.py done "promptring works"${X}
+  ${DIM}2.${X} Restart your Copilot CLI session so the hook loads.
 EOF
+if [ "$OS" = "Darwin" ]; then
+  cat <<EOF
+  ${DIM}·${X} First time only: macOS shows a ${B}Promptring${X} permission prompt → ${B}Allow${X},
+       then set its alert style to ${B}Banners${X} in System Settings → Notifications.
+EOF
+fi
+printf '\n%sEverything lives under ~/.copilot/promptring now — you can delete or move this clone.%s\n' "$DIM" "$X"

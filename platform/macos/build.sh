@@ -11,6 +11,8 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$HERE/../.." && pwd)"
+ICON="$REPO/app/icon.png"            # shared horn icon (used by every platform)
 APP="$HERE/Promptring.app"
 MACOS_DIR="$APP/Contents/MacOS"
 BIN="$MACOS_DIR/promptring"
@@ -36,15 +38,15 @@ cp "$HERE/Info.plist" "$APP/Contents/Info.plist"
 #  Generate icon.icns from icon.png (the promptring horn logo). The
 #  source isn't square, so center-crop it to a square first, then render
 #  every iconset size with `sips` and pack with `iconutil`.
-if [ -f "$HERE/icon.png" ] && command -v sips >/dev/null 2>&1; then
+if [ -f "$ICON" ] && command -v sips >/dev/null 2>&1; then
   ICONSET="$(mktemp -d)/icon.iconset"
   mkdir -p "$ICONSET"
   # center-crop to a square using the smaller dimension
-  W="$(sips -g pixelWidth  "$HERE/icon.png" | awk '/pixelWidth/{print $2}')"
-  H="$(sips -g pixelHeight "$HERE/icon.png" | awk '/pixelHeight/{print $2}')"
+  W="$(sips -g pixelWidth  "$ICON" | awk '/pixelWidth/{print $2}')"
+  H="$(sips -g pixelHeight "$ICON" | awk '/pixelHeight/{print $2}')"
   SIDE=$(( W < H ? W : H ))
   SQUARE="$(mktemp -d)/square.png"
-  sips -c "$SIDE" "$SIDE" "$HERE/icon.png" --out "$SQUARE" >/dev/null
+  sips -c "$SIDE" "$SIDE" "$ICON" --out "$SQUARE" >/dev/null
   for sz in 16 32 128 256 512; do
     sips -z "$sz" "$sz"           "$SQUARE" --out "$ICONSET/icon_${sz}x${sz}.png"    >/dev/null
     sips -z $((sz*2)) $((sz*2))   "$SQUARE" --out "$ICONSET/icon_${sz}x${sz}@2x.png" >/dev/null

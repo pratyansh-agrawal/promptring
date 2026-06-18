@@ -23,15 +23,27 @@ import sys, os, json, shutil
 
 MARKER = "promptring/bin/copilot-notify"
 
+# Substrings that identify a hook entry as ours, across platforms and across
+# upgrades from older entrypoints. Matched against an entry's bash / command /
+# powershell value so re-install is idempotent and `remove` strips only ours.
+MARKERS = (
+    "promptring/bin/promptring",     # current — bash/Linux/macOS/WSL
+    "promptring\\bin\\promptring",   # current — Windows (PowerShell, backslashes)
+    "promptring-win",                # legacy Windows port
+    "promptring/bin/copilot-notify", # legacy macOS entrypoint
+    "copilot-notify.ps1",            # legacy Windows entrypoint
+)
+
 
 def _entry_cmd(entry):
     if not isinstance(entry, dict):
         return ""
-    return entry.get("bash") or entry.get("command") or ""
+    return entry.get("bash") or entry.get("command") or entry.get("powershell") or ""
 
 
 def _is_ours(entry):
-    return MARKER in _entry_cmd(entry)
+    cmd = _entry_cmd(entry)
+    return any(m in cmd for m in MARKERS)
 
 
 def _load(path):
