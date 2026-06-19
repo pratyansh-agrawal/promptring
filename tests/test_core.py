@@ -231,35 +231,59 @@ class DeliveryFallback(unittest.TestCase):
     def test_spawn_returns_true_when_launched(self):
         self.assertTrue(pr._spawn(["echo", "ok"]))
 
-    def test_wsl_falls_back_to_linux_when_bridge_fails(self):
+    def test_wsl_falls_back_to_linux_when_inline_fails(self):
         saved = (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
-                 pr.deliver_windows, pr.deliver_linux)
+                 pr.deliver_wsl_inline, pr.deliver_linux)
         try:
             pr.IS_MACOS = pr.IS_WINDOWS = pr.IS_LINUX = False
             pr.IS_WSL = True
-            pr.deliver_windows = lambda spec, bridge=False: False  # interop down
+            pr.deliver_wsl_inline = lambda spec: False  # interop down
             seen = {}
             pr.deliver_linux = lambda spec: seen.setdefault("linux", True)
             self.assertTrue(pr.deliver(pr.compose("done", "x", "lbl", "")))
             self.assertTrue(seen.get("linux", False))
         finally:
             (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
-             pr.deliver_windows, pr.deliver_linux) = saved
+             pr.deliver_wsl_inline, pr.deliver_linux) = saved
 
-    def test_wsl_no_fallback_when_bridge_succeeds(self):
+    def test_wsl_no_fallback_when_inline_succeeds(self):
         saved = (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
-                 pr.deliver_windows, pr.deliver_linux)
+                 pr.deliver_wsl_inline, pr.deliver_linux)
         try:
             pr.IS_MACOS = pr.IS_WINDOWS = pr.IS_LINUX = False
             pr.IS_WSL = True
-            pr.deliver_windows = lambda spec, bridge=False: True   # bridge works
+            pr.deliver_wsl_inline = lambda spec: True   # inline toast works
             seen = {}
             pr.deliver_linux = lambda spec: seen.setdefault("linux", True)
             self.assertTrue(pr.deliver(pr.compose("done", "x", "lbl", "")))
             self.assertNotIn("linux", seen)
         finally:
             (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
-             pr.deliver_windows, pr.deliver_linux) = saved
+             pr.deliver_wsl_inline, pr.deliver_linux) = saved
+
+
+    def test_stage_avoids_basename_collisions(self):
+        # two different sources sharing a basename + size must stage distinctly
+        d = tempfile.mkdtemp()
+        a_dir = os.path.join(d, "a"); b_dir = os.path.join(d, "b")
+        os.makedirs(a_dir); os.makedirs(b_dir)
+        wsl_dir = os.path.join(d, "stage"); os.makedirs(wsl_dir)
+        src_a = os.path.join(a_dir, "icon.png"); open(src_a, "wb").write(b"AAAA")
+        src_b = os.path.join(b_dir, "icon.png"); open(src_b, "wb").write(b"BBBB")
+        win_a = pr._stage(src_a, r"C:\Temp\promptring", wsl_dir)
+        win_b = pr._stage(src_b, r"C:\Temp\promptring", wsl_dir)
+        self.assertTrue(win_a and win_b)
+        self.assertNotEqual(win_a, win_b)
+        self.assertEqual(open(os.path.join(wsl_dir, os.path.basename(win_a.replace("\\", "/"))), "rb").read(), b"AAAA")
+        self.assertEqual(open(os.path.join(wsl_dir, os.path.basename(win_b.replace("\\", "/"))), "rb").read(), b"BBBB")
+
+    def test_stage_is_stable_across_runs(self):
+        # the hash prefix must be deterministic so re-staging dedupes
+        d = tempfile.mkdtemp()
+        src = os.path.join(d, "icon.png"); open(src, "wb").write(b"XYZ")
+        wsl_dir = os.path.join(d, "stage"); os.makedirs(wsl_dir)
+        self.assertEqual(pr._stage(src, r"C:\T", wsl_dir),
+                         pr._stage(src, r"C:\T", wsl_dir))
 
 
 if __name__ == "__main__":
