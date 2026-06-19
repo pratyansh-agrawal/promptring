@@ -63,11 +63,18 @@ match the macOS reference on every platform.
 - [ ] Headless/SSH: no daemon → expect silence (documented limitation).
 
 ### WSL  ⚠ validate inside WSL with a Windows host
+- [ ] **WSL interop works** — `powershell.exe -NoProfile -Command "exit 0"` runs
+      without `Exec format error`. If it fails, the bridge can't deliver; the
+      installer tries to re-register the `WSLInterop` binfmt handler, but a
+      `wsl --shutdown` (from Windows) + reopen is the reliable repair.
 - [ ] `install.sh` detects WSL, copies assets to the Windows-side
       `%USERPROFILE%\.copilot\promptring`, registers the AUMID.
 - [ ] `promptring.py done "hi"` shells to the Windows toast → banner
-      appears on the **Windows** desktop with the horn icon + chime.
+      appears on the **Windows** desktop with the promptring icon + chime.
 - [ ] `tests/smoke.sh` reports backend `wsl`.
+- [ ] Debugging: `PROMPTRING_DEBUG=1 ~/.copilot/promptring/bin/promptring.py done "hi"`
+      prints why delivery failed (and logs to `~/.copilot/promptring/promptring.log`).
+      When interop is down, delivery falls back to `notify-send` (WSLg).
 
 Report failures with the exact `PROMPTRING_DRYRUN=1 … <category>` spec
 JSON so the composed fields can be compared against the reference.

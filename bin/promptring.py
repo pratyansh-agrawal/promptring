@@ -313,13 +313,39 @@ def sound_enabled():
 
 
 # ── delivery backends ───────────────────────────────────────────────
+def _dbg(msg):
+    """Log to stderr + a log file when PROMPTRING_DEBUG is set; silent otherwise.
+    The orchestrator is fire-and-forget by design, so failures are normally
+    invisible — this makes them inspectable when debugging (e.g. broken WSL
+    interop) without ever disrupting the calling turn."""
+    if os.environ.get("PROMPTRING_DEBUG", "").lower() not in ("1", "true", "yes", "on"):
+        return
+    line = f"[promptring] {msg}"
+    try:
+        sys.stderr.write(line + "\n")
+    except Exception:
+        pass
+    try:
+        with open(os.path.join(HOME_DIR, "promptring.log"), "a") as fh:
+            fh.write(line + "\n")
+    except Exception:
+        pass
+
+
 def _spawn(cmd):
-    """Fire-and-forget a detached child; never block the hook."""
+    """Fire-and-forget a detached child; never block the hook.
+
+    Returns True if the process was launched, False if it could not be (e.g.
+    the binary is missing, or WSL interop is down so a Windows .exe fails with
+    ENOEXEC — Popen raises synchronously in that case). Callers use the result
+    to fall back to another backend."""
     try:
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
-    except Exception:
-        pass
+        return True
+    except Exception as e:
+        _dbg(f"_spawn failed for {(cmd[0] if cmd else '?')!r}: {e}")
+        return False
 
 
 def deliver_macos(spec):
@@ -392,8 +418,7 @@ def deliver_windows(spec, bridge=False):
         sound = _winpath(sound)
     if sound and sound_enabled():
         args += ["-Sound", sound]
-    _spawn(args)
-    return True
+    return _spawn(args)
 
 
 def _bridge_win_home():
@@ -417,8 +442,7 @@ def deliver_linux(spec):
             full_body = full_body + "\n" + body if full_body else body
         cmd = ["notify-send", "-a", "promptring",
                "-i", spec["icon"], spec["title"], full_body]
-        _spawn(cmd)
-        delivered = True
+        delivered = _spawn(cmd)
     if sound_enabled() and spec["sound_file"]:
         for player in ("paplay", "aplay", "canberra-gtk-play"):
             if _which(player):
@@ -441,7 +465,15 @@ def deliver(spec):
     if IS_WINDOWS:
         return deliver_windows(spec)
     if IS_WSL:
-        return deliver_windows(spec, bridge=True)
+        # Preferred WSL path: bridge to the Windows toast via powershell.exe.
+        # If that bridge can't run (e.g. WSL interop / the binfmt_misc
+        # WSLInterop handler is down → ENOEXEC), fall back to a native Linux
+        # notification, which WSLg can render on the Windows desktop.
+        if deliver_windows(spec, bridge=True):
+            return True
+        _dbg("WSL→Windows toast bridge failed (interop down?); "
+             "falling back to Linux/WSLg notify-send")
+        return deliver_linux(spec)
     if IS_LINUX:
         return deliver_linux(spec)
     return False
@@ -466,7 +498,9 @@ def main(argv):
                             else "wsl" if IS_WSL else "linux" if IS_LINUX else "unknown")
         print(json.dumps(spec, ensure_ascii=False))
         return 0
-    deliver(spec)
+    ok = deliver(spec)
+    _dbg(f"delivered={ok} key={key} "
+         f"platform={'wsl' if IS_WSL else 'linux' if IS_LINUX else 'macos' if IS_MACOS else 'windows' if IS_WINDOWS else '?'}")
     return 0
 
 

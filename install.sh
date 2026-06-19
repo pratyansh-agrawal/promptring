@@ -105,7 +105,31 @@ if [ "$OS" = "Darwin" ]; then
 
 elif [ "$IS_WSL" = 1 ]; then
   step "Setting up the WSL → Windows toast bridge"
-  if command -v powershell.exe >/dev/null 2>&1; then
+
+  # The bridge shells out to powershell.exe. If WSL interop is broken — most
+  # commonly because the kernel's binfmt_misc `WSLInterop` handler was never
+  # registered — every Windows .exe fails with ENOEXEC and no toast is ever
+  # delivered. `command -v` isn't enough: the .exe is on /mnt/c so it resolves,
+  # yet exec still fails. We must actually try to RUN it.
+  interop_ok() { powershell.exe -NoProfile -NonInteractive -Command 'exit 0' >/dev/null 2>&1; }
+
+  if ! interop_ok; then
+    warn "WSL interop is down — powershell.exe can't execute (ENOEXEC / missing WSLInterop handler)."
+    # 1. Re-register the binfmt_misc WSLInterop handler for this session.
+    if [ ! -e /proc/sys/fs/binfmt_misc/WSLInterop ] && [ ! -e /proc/sys/fs/binfmt_misc/WSLInterop-late ]; then
+      info "Re-registering the WSLInterop binfmt handler (needs sudo)…"
+      sudo sh -c 'echo ":WSLInterop:M::MZ::/init:PF" > /proc/sys/fs/binfmt_misc/register' 2>/dev/null \
+        && ok "re-registered WSLInterop" \
+        || warn "could not register WSLInterop (need sudo, and binfmt_misc must be mounted)"
+    fi
+    # 2. Make interop explicit + persistent across reboots via /etc/wsl.conf.
+    if [ ! -f /etc/wsl.conf ] || ! grep -q '^\[interop\]' /etc/wsl.conf 2>/dev/null; then
+      sudo sh -c 'printf "\n[interop]\nenabled = true\nappendWindowsPath = true\n" >> /etc/wsl.conf' 2>/dev/null \
+        && info "added [interop] to /etc/wsl.conf" || true
+    fi
+  fi
+
+  if interop_ok; then
     WIN_USERPROFILE="$(powershell.exe -NoProfile -Command '$env:USERPROFILE' 2>/dev/null | tr -d '\r')"
     if [ -n "$WIN_USERPROFILE" ]; then
       WIN_HOME_WSL="$(wslpath "$WIN_USERPROFILE" 2>/dev/null)/.copilot/promptring"
@@ -113,7 +137,7 @@ elif [ "$IS_WSL" = 1 ]; then
       cp -R "$HOME_DIR/platform/windows/." "$WIN_HOME_WSL/platform/windows/"
       cp    "$HOME_DIR/app/icon.png"       "$WIN_HOME_WSL/app/"
       cp -R "$HOME_DIR/sounds/."           "$WIN_HOME_WSL/sounds/"
-      # register the toast app identity (name + horn icon) on the Windows side
+      # register the toast app identity (name + app icon) on the Windows side
       WIN_ICON="$(wslpath -w "$WIN_HOME_WSL/app/icon.png" 2>/dev/null)"
       powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
         \$k='HKCU:\\Software\\Classes\\AppUserModelId\\$AUMID';
@@ -127,8 +151,19 @@ elif [ "$IS_WSL" = 1 ]; then
       warn "Could not resolve the Windows user profile; bridge not set up."
     fi
   else
-    warn "powershell.exe not reachable from WSL — cannot bridge to Windows toasts."
-    info "Ensure WSL interop is enabled (default)."
+    warn "WSL interop still unavailable — the Windows toast bridge can't run yet."
+    info "Fix: run 'wsl --shutdown' from a Windows PowerShell/CMD prompt, reopen this"
+    info "distro, and re-run ./install.sh. A full WSL restart re-registers interop."
+    info "Installing the Linux/WSLg fallback (notify-send) so promptring can still"
+    info "render on the Windows desktop via WSLg in the meantime…"
+    if command -v apt-get >/dev/null 2>&1 && ! command -v notify-send >/dev/null 2>&1; then
+      sudo apt-get install -y libnotify-bin >/dev/null 2>&1 \
+        && ok "installed notify-send (WSLg fallback)" \
+        || warn "could not install libnotify-bin — install it manually for the fallback"
+    fi
+    info "Note: notify-send needs a running notification daemon over D-Bus. If the"
+    info "fallback is silent, enable systemd in /etc/wsl.conf ([boot] systemd=true)"
+    info "then 'wsl --shutdown' — systemd starts D-Bus automatically."
   fi
 
 elif [ "$OS" = "Linux" ]; then

@@ -221,5 +221,46 @@ class InputRequestDetection(unittest.TestCase):
         del os.environ["PROMPTRING_AUTO_INPUT"]
 
 
+class DeliveryFallback(unittest.TestCase):
+    """_spawn reports failure; WSL falls back to Linux when the bridge is down."""
+
+    def test_spawn_returns_false_on_bad_exec(self):
+        # mimics ENOEXEC (broken WSL interop) / a missing binary
+        self.assertFalse(pr._spawn(["/nonexistent/promptring-xyz", "a"]))
+
+    def test_spawn_returns_true_when_launched(self):
+        self.assertTrue(pr._spawn(["echo", "ok"]))
+
+    def test_wsl_falls_back_to_linux_when_bridge_fails(self):
+        saved = (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
+                 pr.deliver_windows, pr.deliver_linux)
+        try:
+            pr.IS_MACOS = pr.IS_WINDOWS = pr.IS_LINUX = False
+            pr.IS_WSL = True
+            pr.deliver_windows = lambda spec, bridge=False: False  # interop down
+            seen = {}
+            pr.deliver_linux = lambda spec: seen.setdefault("linux", True)
+            self.assertTrue(pr.deliver(pr.compose("done", "x", "lbl", "")))
+            self.assertTrue(seen.get("linux", False))
+        finally:
+            (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
+             pr.deliver_windows, pr.deliver_linux) = saved
+
+    def test_wsl_no_fallback_when_bridge_succeeds(self):
+        saved = (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
+                 pr.deliver_windows, pr.deliver_linux)
+        try:
+            pr.IS_MACOS = pr.IS_WINDOWS = pr.IS_LINUX = False
+            pr.IS_WSL = True
+            pr.deliver_windows = lambda spec, bridge=False: True   # bridge works
+            seen = {}
+            pr.deliver_linux = lambda spec: seen.setdefault("linux", True)
+            self.assertTrue(pr.deliver(pr.compose("done", "x", "lbl", "")))
+            self.assertNotIn("linux", seen)
+        finally:
+            (pr.IS_MACOS, pr.IS_WINDOWS, pr.IS_LINUX, pr.IS_WSL,
+             pr.deliver_windows, pr.deliver_linux) = saved
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
