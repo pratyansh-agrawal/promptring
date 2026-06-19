@@ -4,7 +4,7 @@
 #  Receives PRE-COMPOSED banner fields from the orchestrator
 #  (bin/promptring.py) and does only the native Windows delivery:
 #    * a real WinRT toast under the registered "promptring" app identity
-#      (AUMID) — same horn icon + name as the macOS app,
+#      (AUMID) — same icon + name as the macOS app,
 #    * a Windows Terminal taskbar flash + red pending-count badge,
 #    * the per-category sound.
 #

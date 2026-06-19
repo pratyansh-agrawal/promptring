@@ -30,7 +30,7 @@ No Homebrew, no extra packages, no `osascript` hacks. One small Python
 orchestrator owns all the logic; each OS only handles the final banner with its
 own native delivery — a self-contained signed app on macOS, a WinRT toast +
 taskbar badge on Windows, `notify-send` on Linux, and a Windows-side toast
-bridge under WSL. The look, the horn icon, and the bundled **tring** chime are
+bridge under WSL. The look, the promptring icon, and the bundled **tring** chime are
 identical everywhere.
 
 ```
@@ -156,7 +156,7 @@ export COPILOT_NOTIFY_SOUND=0
 | **Linux**   | `notify-send` (libnotify)                         | `paplay`/`aplay`/`canberra`    | working-folder fallback   | ⚠ needs validation |
 | **WSL**     | bridges to the Windows toast via `powershell.exe` | Windows-side chime             | Windows Terminal title    | ⚠ needs validation |
 
-All platforms share the same title/subtitle/body layout, the horn icon, and the
+All platforms share the same title/subtitle/body layout, the promptring icon, and the
 bundled `tring` chime. One Python orchestrator (`bin/promptring.py`) composes the
 banner; only the final delivery is native.
 
