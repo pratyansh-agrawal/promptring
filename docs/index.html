@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>promptring — desktop notifications for the GitHub Copilot CLI (macOS)</title>
-  <meta name="description" content="promptring (prompt·tring) fires real macOS desktop notification banners when your GitHub Copilot CLI agent finishes a task, needs your input, or hits a blocker. Get a prompt/notify banner for the latest macOS Copilot CLI — powered by Claude — with zero dependencies, from any terminal (Terminal.app, iTerm2, VS Code). Built by Pratyansh Agrawal.">
-  <meta name="keywords" content="promptring, prompt-tring, prompt, notify, copilot notify, GitHub Copilot CLI, copilot cli notifications, latest macOS Copilot, macOS notifications, claude notification, claude agent notifications, desktop banner, iTerm2, Terminal.app, developer tools, Pratyansh Agrawal, agent notifications">
+  <title>promptring — desktop notifications for the GitHub Copilot CLI (macOS · Windows · Linux · WSL)</title>
+  <meta name="description" content="promptring (prompt·tring) fires real desktop notification banners when your GitHub Copilot CLI agent finishes a task, needs your input, or hits a blocker. Native banners on the latest macOS Copilot CLI — powered by Claude — plus Windows, Linux and WSL, with zero dependencies, from any terminal (Terminal.app, iTerm2, VS Code). Built by Pratyansh Agrawal.">
+  <meta name="keywords" content="promptring, prompt-tring, prompt, notify, copilot notify, GitHub Copilot CLI, copilot cli notifications, latest macOS Copilot, macOS notifications, windows toast notification, linux notify-send, wsl notifications, cross-platform, claude notification, claude agent notifications, desktop banner, iTerm2, Terminal.app, Windows Terminal, developer tools, Pratyansh Agrawal, agent notifications">
   <meta name="author" content="Pratyansh Agrawal">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#f24d63">
@@ -18,7 +18,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="promptring">
   <meta property="og:title" content="promptring — desktop notifications for the GitHub Copilot CLI">
-  <meta property="og:description" content="Real macOS notification banners when your Copilot CLI agent finishes, needs input, or is blocked. Zero dependencies, works from any terminal.">
+  <meta property="og:description" content="Real native notification banners — on macOS, Windows, Linux & WSL — when your Copilot CLI agent finishes, needs input, or is blocked. Zero dependencies, works from any terminal.">
   <meta property="og:url" content="https://pratyansh-agrawal.github.io/promptring/">
   <meta property="og:image" content="https://pratyansh-agrawal.github.io/promptring/media/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -28,7 +28,7 @@
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="promptring — desktop notifications for the GitHub Copilot CLI">
-  <meta name="twitter:description" content="Real macOS notification banners when your Copilot CLI agent finishes, needs input, or is blocked. Zero dependencies, works from any terminal.">
+  <meta name="twitter:description" content="Real native notification banners — on macOS, Windows, Linux & WSL — when your Copilot CLI agent finishes, needs input, or is blocked. Zero dependencies, works from any terminal.">
   <meta name="twitter:image" content="https://pratyansh-agrawal.github.io/promptring/media/og-image.png">
 
   <!-- Structured data -->
@@ -39,8 +39,8 @@
     "name": "promptring",
     "alternateName": "prompt-tring",
     "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "macOS",
-    "description": "Desktop notifications for the GitHub Copilot CLI — get a prompt/notify banner the moment a Claude-powered agent finishes a task, needs your input, or hits a blocker. Real macOS banners for the latest macOS Copilot CLI, from any terminal, with zero dependencies.",
+    "operatingSystem": "macOS, Windows, Linux, Windows Subsystem for Linux",
+    "description": "Desktop notifications for the GitHub Copilot CLI — get a prompt/notify banner the moment a Claude-powered agent finishes a task, needs your input, or hits a blocker. Native banners on the latest macOS Copilot CLI plus Windows, Linux and WSL, from any terminal, with zero dependencies.",
     "url": "https://pratyansh-agrawal.github.io/promptring/",
     "downloadUrl": "https://github.com/pratyansh-agrawal/promptring",
     "image": "https://pratyansh-agrawal.github.io/promptring/media/og-image.png",
@@ -130,6 +130,7 @@
       <h1>promptring</h1>
       <div class="ipa">prompt·tring &nbsp;/ˈprɒm(p)t.trɪŋ/</div>
       <p class="tagline">Desktop notifications for the <strong>GitHub Copilot CLI</strong> — that little <em>tring</em> 🔔 the moment your terminal agent is done, needs input, or hits a blocker.</p>
+      <p class="ipa" style="margin-top:14px">macOS · Windows · Linux · WSL — one codebase, native banners everywhere</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/pratyansh-agrawal/promptring">⭐ View on GitHub</a>
         <a class="btn ghost" href="#install">Install</a>
@@ -144,32 +145,33 @@
   <main class="wrap">
     <section>
       <h2>Why promptring?</h2>
-      <p class="lead">The GitHub Copilot CLI gives you no reliable desktop notification when an agent finishes or pauses for input — so you sit and watch the terminal, or miss the moment entirely. promptring fixes that with real macOS banners that fire from <strong>any</strong> terminal: Terminal.app, iTerm2, VS Code, or tmux.</p>
+      <p class="lead">The GitHub Copilot CLI gives you no reliable desktop notification when an agent finishes or pauses for input — so you sit and watch the terminal, or miss the moment entirely. promptring fixes that with real native banners that fire from <strong>any</strong> terminal — Terminal.app, iTerm2, VS Code, Windows Terminal, or tmux — identically on <strong>macOS, Windows, Linux and WSL</strong>. macOS is the reference design; every other OS gets the same banner through its own native delivery.</p>
     </section>
 
     <section>
       <h2>Features</h2>
       <div class="features">
-        <div class="feature"><div class="emoji">🔔</div><h3>Real macOS banners</h3><p>A signed notification agent posts genuine Notification Center banners — not fragile escape codes.</p></div>
+        <div class="feature"><div class="emoji">🔔</div><h3>Real macOS banners</h3><p>A signed notification agent posts genuine Notification Center banners on macOS — not fragile escape codes — with native equivalents on Windows, Linux and WSL.</p></div>
+        <div class="feature"><div class="emoji">🌍</div><h3>macOS · Windows · Linux · WSL</h3><p>One Python orchestrator, native delivery per OS: a signed app on macOS, a WinRT toast on Windows, <code class="inline">notify-send</code> on Linux, and an inline toast under WSL.</p></div>
         <div class="feature"><div class="emoji">📂</div><h3>Tab name &amp; summary</h3><p>Each banner shows which terminal session pinged you and a one-line recap of what the agent did.</p></div>
         <div class="feature"><div class="emoji">⚡</div><h3>Zero dependencies</h3><p>No Homebrew, no extra packages, no osascript hacks. Just clone and run the installer.</p></div>
         <div class="feature"><div class="emoji">🪝</div><h3>Native CLI hooks</h3><p>Wires into the Copilot CLI's own lifecycle events, so firing is deterministic — never reliant on the model.</p></div>
         <div class="feature"><div class="emoji">🔊</div><h3>Bundled sound</h3><p>Ships its own “tring” chime, layered on the banner. Use any system sound or turn it off.</p></div>
-        <div class="feature"><div class="emoji">🖥️</div><h3>Any terminal</h3><p>Works the same whether you run Copilot in Terminal.app, iTerm2, VS Code, or under tmux.</p></div>
+        <div class="feature"><div class="emoji">🖥️</div><h3>Any terminal</h3><p>Works the same whether you run Copilot in Terminal.app, iTerm2, VS Code, Windows Terminal, or under tmux.</p></div>
       </div>
     </section>
 
     <section id="install">
       <h2>Install</h2>
-      <p class="lead" style="margin-bottom:16px">macOS · Xcode Command Line Tools · <code class="inline">git</code>, <code class="inline">bash</code>.</p>
+      <p class="lead" style="margin-bottom:16px"><strong>macOS</strong> · Xcode Command Line Tools · <code class="inline">git</code>, <code class="inline">bash</code>.</p>
       <pre><span class="c"># clone &amp; install — builds the app, registers it, installs the hook</span>
 git clone https://github.com/pratyansh-agrawal/promptring.git
 cd promptring
 ./install.sh
 
 <span class="c"># test it</span>
-~/.copilot/promptring/bin/copilot-notify done "promptring works"</pre>
-      <p class="lead" style="margin-top:16px">Everything installs under <code class="inline">~/.copilot/promptring</code>, so you can delete the clone afterwards. Restart your Copilot CLI session so the hook loads. Full docs on <a href="https://github.com/pratyansh-agrawal/promptring">GitHub</a>.</p>
+~/.copilot/promptring/bin/promptring.py done "promptring works"</pre>
+      <p class="lead" style="margin-top:16px"><strong>Windows · Linux · WSL:</strong> the same <code class="inline">./install.sh</code> auto-detects Linux and WSL (no Windows-side install needed under WSL); on Windows run <code class="inline">install.ps1</code> instead. Everything installs under <code class="inline">~/.copilot/promptring</code>, so you can delete the clone afterwards. Restart your Copilot CLI session so the hook loads. Full per-OS docs on <a href="https://github.com/pratyansh-agrawal/promptring">GitHub</a>.</p>
     </section>
   </main>
 
