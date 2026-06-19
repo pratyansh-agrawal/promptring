@@ -9,7 +9,7 @@
        ~/.copilot/promptring  (same layout/location as macOS & Linux).
     2. Generates app/icon.ico from icon.png and registers a Windows app
        identity (AUMID com.promptring.notifier) so toasts show the
-       "promptring" name + horn icon — the same identity as the macOS app.
+       "promptring" name + app icon — the same identity as the macOS app.
     3. Merges the Copilot CLI hooks into ~/.copilot/hooks/hooks.json (your
        existing hooks are preserved). On Windows the CLI runs the hook's
        `powershell` command, which invokes `python promptring.py`.
@@ -200,7 +200,7 @@ if ($NoTest) {
   Write-Step "Firing a test banner"
   try {
     & $py (Join-Path $HomeDir 'bin\promptring.py') done 'promptring works'
-    Write-Ok "test fired - expect a toast (horn icon) + the tring chime"
+    Write-Ok "test fired - expect a toast (promptring icon) + the tring chime"
   } catch {
     Write-Warn2 "test banner failed: $($_.Exception.Message)"
   }
