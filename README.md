@@ -12,7 +12,7 @@
   <a href="#install">Install</a> &nbsp;·&nbsp;
   <a href="#usage">Usage</a>
   <br><br>
-  <img src="https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux-000" alt="macOS · Windows · Linux">
+  <img src="https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20WSL-000" alt="macOS · Windows · Linux · WSL">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
   <img src="https://img.shields.io/badge/dependencies-python3-brightgreen" alt="Only python3">
 </p>
@@ -29,9 +29,10 @@ WSL** from a single, OS-independent codebase.
 No Homebrew, no extra packages, no `osascript` hacks. One small Python
 orchestrator owns all the logic; each OS only handles the final banner with its
 own native delivery — a self-contained signed app on macOS, a WinRT toast +
-taskbar badge on Windows, `notify-send` on Linux, and a Windows-side toast
-bridge under WSL. The look, the promptring icon, and the bundled **tring** chime are
-identical everywhere.
+taskbar badge on Windows, `notify-send` on Linux, and an inline WinRT toast
+under WSL (rendered through `powershell.exe`, **no Windows-side install**, with
+a `notify-send`/WSLg fallback). The look, the promptring icon, and the bundled
+**tring** chime are identical everywhere.
 
 ```
 ✅ Copilot — Task complete: rebuilt the auth module
@@ -147,6 +148,31 @@ bundled file first, then `~/Library/Sounds`, then macOS system sounds (`Glass`,
 export COPILOT_NOTIFY_SOUND=0
 ```
 
+### Environment variables
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `COPILOT_NOTIFY_SOUND` | `1` | Set `0` to mute the bundled chime (the terminal's own sound still plays). |
+| `PROMPTRING_AUTO_INPUT` | `1` | Set `0` to stop re-classifying a `done` turn as a 🟡 `input` banner when the agent ends by asking you a question. |
+| `PROMPTRING_DEBUG` | – | Set `1` to log delivery decisions to stderr and `~/.copilot/promptring/promptring.log` (handy for diagnosing WSL). |
+| `PROMPTRING_AUMID` | – | **WSL** — override the Windows AppUserModelID used for the inline toast. |
+| `COPILOT_NOTIFY_CONFIG` | – | Path to an alternate `categories.conf`. |
+
+## Troubleshooting
+
+**No banner under WSL?** The toast is rendered on the Windows side through
+`powershell.exe`, so WSL interop must be working. Diagnose with:
+
+```sh
+PROMPTRING_DEBUG=1 ~/.copilot/promptring/bin/promptring.py done "hi"
+```
+
+If you see an `Exec format error` / `ENOEXEC`, the kernel's `WSLInterop`
+handler is missing — run `wsl --shutdown` from Windows and reopen the distro
+(the installer also tries to re-register it). promptring automatically falls
+back to `notify-send` (WSLg) when the toast can't run, so `sudo apt install
+libnotify-bin` enables that path.
+
 ## Platform support
 
 | OS          | Delivery backend                                  | Sound                          | Session label             | Status            |
@@ -154,7 +180,7 @@ export COPILOT_NOTIFY_SOUND=0
 | **macOS**   | signed `UNUserNotificationCenter` app (`Promptring.app`) | `afplay`                | iTerm/Terminal tab title  | ✅ reference       |
 | **Windows** | WinRT toast (PS 5.1) + taskbar flash & badge      | `MediaPlayer`                  | Windows Terminal title    | ⚠ needs validation |
 | **Linux**   | `notify-send` (libnotify)                         | `paplay`/`aplay`/`canberra`    | working-folder fallback   | ⚠ needs validation |
-| **WSL**     | bridges to the Windows toast via `powershell.exe` | Windows-side chime             | Windows Terminal title    | ⚠ needs validation |
+| **WSL**     | inline WinRT toast via `powershell.exe` (no Windows install) → `notify-send`/WSLg fallback | Windows-side chime | Windows Terminal title | ✅ verified |
 
 All platforms share the same title/subtitle/body layout, the promptring icon, and the
 bundled `tring` chime. One Python orchestrator (`bin/promptring.py`) composes the
@@ -167,7 +193,9 @@ banner; only the final delivery is native.
 - **macOS:** Xcode Command Line Tools (`swiftc`, `codesign`, `sips`, `iconutil`).
 - **Windows:** Windows PowerShell 5.1 (built in) for the WinRT toast.
 - **Linux:** `notify-send` (`libnotify-bin`); a sound player (`paplay`/`aplay`).
-- **WSL:** a Windows host (the bridge posts the toast on the Windows side).
+- **WSL:** a Windows host with working WSL interop (`powershell.exe` must be
+  runnable). **No Windows-side promptring install needed** — the toast is
+  rendered inline; promptring falls back to `notify-send`/WSLg if interop is down.
 
 ## Uninstall
 
