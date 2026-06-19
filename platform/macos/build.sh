@@ -12,7 +12,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-ICON="$REPO/app/icon.png"            # shared horn icon (used by every platform)
+ICON="$REPO/app/icon.png"            # shared promptring icon (used by every platform)
 APP="$HERE/Promptring.app"
 MACOS_DIR="$APP/Contents/MacOS"
 BIN="$MACOS_DIR/promptring"
@@ -35,7 +35,7 @@ mkdir -p "$RES_DIR"
 cp "$HERE/Info.plist" "$APP/Contents/Info.plist"
 
 # ── app icon ────────────────────────────────────────────────────────
-#  Generate icon.icns from icon.png (the promptring horn logo). The
+#  Generate icon.icns from icon.png (the promptring logo). The
 #  source isn't square, so center-crop it to a square first, then render
 #  every iconset size with `sips` and pack with `iconutil`.
 if [ -f "$ICON" ] && command -v sips >/dev/null 2>&1; then

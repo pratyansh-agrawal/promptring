@@ -42,13 +42,13 @@ match the macOS reference on every platform.
 ### macOS  ✅ verified on dev box
 - [x] `~/.copilot/promptring/bin/promptring.py done "hi"` shows a banner:
       title `promptring — <tab>`, subtitle `✅ Task complete`, body `hi`,
-      horn icon, `tring` chime.
+      promptring icon, `tring` chime.
 - [x] First run: macOS permission prompt → Allow; alert style = Banners.
 - [x] Hook fires at end of a real Copilot turn (restart session first).
 
 ### Windows  ⚠ validate on a Windows machine
 - [ ] `python %USERPROFILE%\.copilot\promptring\bin\promptring.py done "hi"`
-      → WinRT toast under the **promptring** name + horn icon.
+      → WinRT toast under the **promptring** name + app icon.
 - [ ] Taskbar icon flashes and shows a badge.
 - [ ] `tring` chime plays.
 - [ ] `powershell -File tests\smoke.ps1 -Live` pops all 5 categories.
@@ -57,7 +57,7 @@ match the macOS reference on every platform.
 
 ### Linux  ⚠ validate on a desktop Linux machine
 - [ ] `notify-send` present (`sudo apt install libnotify-bin` if not).
-- [ ] `promptring.py done "hi"` → libnotify banner with horn icon.
+- [ ] `promptring.py done "hi"` → libnotify banner with promptring icon.
 - [ ] Sound via `paplay`/`aplay`/`canberra-gtk-play`.
 - [ ] `tests/smoke.sh --live` pops all categories.
 - [ ] Headless/SSH: no daemon → expect silence (documented limitation).
@@ -66,7 +66,7 @@ match the macOS reference on every platform.
 - [ ] `install.sh` detects WSL, copies assets to the Windows-side
       `%USERPROFILE%\.copilot\promptring`, registers the AUMID.
 - [ ] `promptring.py done "hi"` shells to the Windows toast → banner
-      appears on the **Windows** desktop with the horn icon + chime.
+      appears on the **Windows** desktop with the promptring icon + chime.
 - [ ] `tests/smoke.sh` reports backend `wsl`.
 
 Report failures with the exact `PROMPTRING_DRYRUN=1 … <category>` spec

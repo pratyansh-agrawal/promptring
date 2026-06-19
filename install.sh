@@ -113,7 +113,7 @@ elif [ "$IS_WSL" = 1 ]; then
       cp -R "$HOME_DIR/platform/windows/." "$WIN_HOME_WSL/platform/windows/"
       cp    "$HOME_DIR/app/icon.png"       "$WIN_HOME_WSL/app/"
       cp -R "$HOME_DIR/sounds/."           "$WIN_HOME_WSL/sounds/"
-      # register the toast app identity (name + horn icon) on the Windows side
+      # register the toast app identity (name + app icon) on the Windows side
       WIN_ICON="$(wslpath -w "$WIN_HOME_WSL/app/icon.png" 2>/dev/null)"
       powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
         \$k='HKCU:\\Software\\Classes\\AppUserModelId\\$AUMID';
