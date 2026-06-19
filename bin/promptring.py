@@ -10,7 +10,8 @@
 #      macOS  → Promptring.app (UNUserNotificationCenter) + afplay
 #      Windows→ WinRT toast (PowerShell 5.1) + taskbar badge + MediaPlayer
 #      Linux  → notify-send (libnotify) + paplay/aplay
-#      WSL    → bridge to the Windows toast (reuses the Windows backend)
+#      WSL    → inline WinRT toast via powershell.exe (no Windows-side
+#               install needed) → notify-send/WSLg fallback
 #
 #  The banner design is identical everywhere (the macOS reference):
 #      promptring — <session>     ← title
@@ -28,6 +29,9 @@ CONFIG     = os.environ.get("COPILOT_NOTIFY_CONFIG") or os.path.join(HOME_DIR, "
 SOUNDS_DIR = os.path.join(HOME_DIR, "sounds")
 ICON_PNG   = os.path.join(HOME_DIR, "app", "icon.png")
 AUMID      = "com.promptring.notifier"
+# Default-registered Windows PowerShell AUMID — lets the WSL-only inline path
+# raise a real toast without any Windows-side install or AUMID registration.
+WSL_FALLBACK_AUMID = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
 
 # Reuse the shared enricher (same dir) for the one-line summary.
 sys.path.insert(0, SCRIPT_DIR)
@@ -393,16 +397,11 @@ def _winpath(path):
     return path
 
 
-def deliver_windows(spec, bridge=False):
+def deliver_windows(spec):
     ps = _powershell_exe()
     if not ps:
         return False
     toast = os.path.join(HOME_DIR, "platform", "windows", "toast.ps1")
-    if bridge:
-        # WSL: assets live on the Windows side; resolve the bridge install.
-        win_home = _bridge_win_home()
-        if win_home:
-            toast = win_home + r"\platform\windows\toast.ps1"
     args = [ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", toast,
             "-Title",    spec["title"],
             "-Subtitle", spec["subtitle"],
@@ -412,24 +411,11 @@ def deliver_windows(spec, bridge=False):
             "-Icon",     _winpath(spec["icon"]),
             "-Aumid",    AUMID]
     sound = spec["sound_file"]
-    if bridge and sound:
-        sound = _bridge_win_home() + r"\sounds\\" + os.path.basename(sound)
-    elif sound:
+    if sound:
         sound = _winpath(sound)
     if sound and sound_enabled():
         args += ["-Sound", sound]
     return _spawn(args)
-
-
-def _bridge_win_home():
-    """Windows-side install root used by the WSL bridge."""
-    env = os.environ.get("PROMPTRING_WIN_HOME")
-    if env:
-        return env
-    up = _run([_powershell_exe(), "-NoProfile", "-Command", "$env:USERPROFILE"]).strip()
-    if up:
-        return up + r"\.copilot\promptring"
-    return ""
 
 
 def deliver_linux(spec):
@@ -459,19 +445,138 @@ def _which(name):
     return which(name)
 
 
+# ── WSL-only delivery (no Windows-side promptring install required) ──
+def _win_temp():
+    """(win_path, wsl_path) for %TEMP%\\promptring, created. ('','') on failure.
+    Assets must live on a Windows-LOCAL path — WinRT toasts cannot load images
+    or sounds from \\\\wsl.localhost\\ UNC paths."""
+    ps = _powershell_exe()
+    if not ps:
+        return "", ""
+    win = _run([ps, "-NoProfile", "-Command", "$env:TEMP"]).strip()
+    if not win:
+        return "", ""
+    win += r"\promptring"
+    wsl = _run(["wslpath", win]).strip()
+    if not wsl:
+        return "", ""
+    try:
+        os.makedirs(wsl, exist_ok=True)
+    except Exception:
+        return "", ""
+    return win, wsl
+
+
+def _stage(src, win_dir, wsl_dir):
+    """Copy an asset into the Windows temp dir (skip if already current).
+    Returns its Windows path, or '' on failure. The staged name is prefixed
+    with a stable hash of the source path so two different assets that share a
+    basename (e.g. icon.png) and size can't collide in %TEMP%."""
+    if not src or not os.path.isfile(src) or not win_dir:
+        return ""
+    import shutil, hashlib
+    h = hashlib.md5(os.path.abspath(src).encode("utf-8")).hexdigest()[:8]
+    name = f"{h}_{os.path.basename(src)}"
+    dst = os.path.join(wsl_dir, name)
+    try:
+        if not (os.path.isfile(dst) and os.path.getsize(dst) == os.path.getsize(src)):
+            shutil.copyfile(src, dst)
+    except Exception:
+        return ""
+    return win_dir + "\\" + name
+
+
+def _play_win_sound(ps, win_sound):
+    """Best-effort: play a staged custom sound via a detached MediaPlayer."""
+    import base64
+    # win_sound is a single-quoted PS literal; double any embedded quote so a
+    # path like C:\Users\O'Connor\... can't break out of the string.
+    safe = win_sound.replace("'", "''")
+    s = ("Add-Type -AssemblyName PresentationCore;"
+         "$p=New-Object System.Windows.Media.MediaPlayer;"
+         f"$p.Open([Uri]::new('{safe}'));$p.Volume=1.0;$p.Play();"
+         "Start-Sleep -Milliseconds 200;$w=0;"
+         "while(-not $p.NaturalDuration.HasTimeSpan -and $w -lt 1500){Start-Sleep -Milliseconds 50;$w+=50};"
+         "if($p.NaturalDuration.HasTimeSpan){Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds+100)};"
+         "$p.Close()")
+    enc = base64.b64encode(s.encode("utf-16-le")).decode("ascii")
+    _spawn([ps, "-NoProfile", "-EncodedCommand", enc])
+
+
+def deliver_wsl_inline(spec):
+    """Self-contained WSL->Windows toast: NO Windows-side promptring install,
+    NO toast.ps1, NO AUMID registration. The icon/sound are staged to Windows
+    %TEMP% and the toast is shown inline via powershell.exe -EncodedCommand
+    under the default-registered Windows PowerShell AUMID."""
+    import base64
+    ps = _powershell_exe()
+    if not ps:
+        return False
+
+    win_dir, wsl_dir = _win_temp()
+    win_icon  = _stage(spec.get("icon"), win_dir, wsl_dir)
+    win_sound = ""
+    if sound_enabled() and spec.get("sound_file"):
+        win_sound = _stage(spec["sound_file"], win_dir, wsl_dir)
+
+    def esc(s):
+        s = "" if s is None else str(s)
+        return (s.replace("&", "&amp;").replace("<", "&lt;")
+                 .replace(">", "&gt;").replace('"', "&quot;"))
+
+    logo = f'<image placement="appLogoOverride" src="{esc(win_icon)}"/>' if win_icon else ""
+    sub  = f"<text>{esc(spec.get('subtitle'))}</text>" if spec.get("subtitle") else ""
+    body = f"<text>{esc(spec.get('body'))}</text>" if spec.get("body") else ""
+
+    # Custom sound -> play it ourselves (silent toast). Else, if sound is on,
+    # use the built-in Windows notification sound. Else, stay silent.
+    if win_sound:
+        audio = '<audio silent="true"/>'
+    elif sound_enabled():
+        audio = '<audio src="ms-winsoundevent:Notification.Default"/>'
+    else:
+        audio = '<audio silent="true"/>'
+
+    xml = (f'<toast><visual><binding template="ToastGeneric">'
+           f'{logo}<text>{esc(spec.get("title"))}</text>{sub}{body}'
+           f'</binding></visual>{audio}</toast>')
+
+    # Never interpolate untrusted text into PowerShell source: the toast XML
+    # (which embeds the agent's message) is carried as base64 and rebuilt
+    # inside PowerShell, so no message content can break out of a string or
+    # here-string and execute. The AUMID is a single-quoted PS literal, so
+    # double any embedded quote (PowerShell's single-quote escape).
+    aumid = (os.environ.get("PROMPTRING_AUMID") or WSL_FALLBACK_AUMID).replace("'", "''")
+    xml_b64 = base64.b64encode(xml.encode("utf-8")).decode("ascii")
+    script = (
+        "$ErrorActionPreference='Stop'\n"
+        "[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]|Out-Null\n"
+        "[Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml.Dom.XmlDocument,ContentType=WindowsRuntime]|Out-Null\n"
+        "$doc=[Windows.Data.Xml.Dom.XmlDocument]::new()\n"
+        f"$xml=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('{xml_b64}'))\n"
+        "$doc.LoadXml($xml)\n"
+        f"$n=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{aumid}')\n"
+        "$n.Show([Windows.UI.Notifications.ToastNotification]::new($doc))\n"
+    )
+    enc = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    ok = _spawn([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc])
+    if ok and win_sound:
+        _play_win_sound(ps, win_sound)
+    return ok
+
+
 def deliver(spec):
     if IS_MACOS:
         return deliver_macos(spec)
     if IS_WINDOWS:
         return deliver_windows(spec)
     if IS_WSL:
-        # Preferred WSL path: bridge to the Windows toast via powershell.exe.
-        # If that bridge can't run (e.g. WSL interop / the binfmt_misc
-        # WSLInterop handler is down → ENOEXEC), fall back to a native Linux
-        # notification, which WSLg can render on the Windows desktop.
-        if deliver_windows(spec, bridge=True):
+        # WSL-only path: render the Windows toast inline via powershell.exe,
+        # with NO dependency on a Windows-side promptring install. Falls back
+        # to Linux/WSLg notify-send if interop is unavailable.
+        if deliver_wsl_inline(spec):
             return True
-        _dbg("WSL→Windows toast bridge failed (interop down?); "
+        _dbg("WSL inline toast failed (interop down?); "
              "falling back to Linux/WSLg notify-send")
         return deliver_linux(spec)
     if IS_LINUX:
