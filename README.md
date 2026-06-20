@@ -37,7 +37,7 @@ a `notify-send`/WSLg fallback). The look, the promptring icon, and the bundled
 ```
 ✅ Copilot — Task complete: rebuilt the auth module
 🟡 Copilot — Needs your input: choose a database engine
-⛔ Copilot — Blocked — needs you: build failed, missing env var
+⛔ Copilot — Blocked: build failed, missing env var
 ```
 
 
@@ -141,7 +141,7 @@ input      | 🟡    | Copilot  | Needs your input      | tring
 ```
 
 promptring ships its own sound (`sounds/tring.mp3`). Sound names resolve to a
-bundled file first, then `~/Library/Sounds`, then macOS system sounds (`Glass`,
+bundled file first, then — on macOS — `~/Library/Sounds` and system sounds (`Glass`,
 `Ping`, …). To disable the sound layer and use only the terminal's own:
 
 ```sh
@@ -204,10 +204,10 @@ The hook removal is identical on every OS (your other hooks are preserved):
 ```sh
 # macOS / Linux / WSL
 python3 ~/.copilot/promptring/bin/merge-hooks.py remove ~/.copilot/hooks/hooks.json
-rm -rf ~/.copilot/promptring
-# macOS also: unregister the app
+# macOS only: unregister the app BEFORE deleting it
 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
   -u "$HOME/.copilot/promptring/platform/macos/Promptring.app"
+rm -rf ~/.copilot/promptring
 ```
 
 ```powershell
