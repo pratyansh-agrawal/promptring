@@ -10,8 +10,9 @@
 #    • macOS — builds + registers the signed Promptring.app (banners from
 #      any terminal) and plays the chime via afplay.
 #    • Linux — delivers via notify-send (libnotify) + paplay/aplay.
-#    • WSL   — sets up a bridge to the Windows toast (a real Windows banner
-#      from inside WSL), since WSL has no notification daemon of its own.
+#    • WSL   — renders a real Windows toast inline via powershell.exe, with
+#      no Windows-side install required. The installer also repairs WSL
+#      interop and sets up notify-send (WSLg) as a fallback.
 #
 #  Everything lives under ~/.copilot/promptring, so the clone can be
 #  deleted or moved afterward. Idempotent: re-running refreshes in place.
@@ -61,7 +62,7 @@ printf '%s' "$X"
 info "repo: $REPO"
 case "$OS" in
   Darwin) info "platform: macOS" ;;
-  Linux)  [ "$IS_WSL" = 1 ] && info "platform: WSL (Windows bridge)" || info "platform: Linux" ;;
+  Linux)  [ "$IS_WSL" = 1 ] && info "platform: WSL (inline Windows toast)" || info "platform: Linux" ;;
   *)      warn "platform: $OS (unsupported — bell/OSC fallback only)" ;;
 esac
 
@@ -104,7 +105,7 @@ if [ "$OS" = "Darwin" ]; then
   fi
 
 elif [ "$IS_WSL" = 1 ]; then
-  step "Setting up the WSL → Windows toast bridge"
+  step "Configuring WSL → Windows toast (interop + fallback)"
 
   # The bridge shells out to powershell.exe. If WSL interop is broken — most
   # commonly because the kernel's binfmt_misc `WSLInterop` handler was never

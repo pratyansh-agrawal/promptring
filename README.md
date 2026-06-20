@@ -42,38 +42,47 @@ input, or hits a blocker. Switch to another window and you'll still catch the
 
 ## Install
 
-Clone once, run the installer, restart Copilot. Everything lands in
-`~/.copilot/promptring`, so you can delete the clone afterward.
+One line, no clone. The installer lands everything in `~/.copilot/promptring`;
+restart the Copilot CLI afterward so the hook loads.
 
-### macOS · Linux · WSL
-
-> **Prerequisites:** `python3`, `git`, `bash`. macOS also needs Xcode Command
-> Line Tools (`xcode-select --install`); Linux also needs `notify-send`
-> (`sudo apt install libnotify-bin`).
+**macOS · Linux · WSL**
 
 ```sh
-git clone https://github.com/pratyansh-agrawal/promptring.git
-cd promptring
-./install.sh                                              # auto-detects your OS
-~/.copilot/promptring/bin/promptring.py done "promptring works"   # expect a banner + chime
-copilot                                                   # restart so the hook loads
+curl -fsSL https://pratyansh-agrawal.github.io/promptring/install.sh | bash
 ```
 
-### Windows
-
-> **Prerequisites:** Python 3 (python.org, "Add to PATH"); Windows Terminal recommended.
+**Windows**
 
 ```powershell
-git clone https://github.com/pratyansh-agrawal/promptring.git
-cd promptring
-powershell -ExecutionPolicy Bypass -File install.ps1
-python "$env:USERPROFILE\.copilot\promptring\bin\promptring.py" done "promptring works"
-copilot
+irm https://pratyansh-agrawal.github.io/promptring/install.ps1 | iex
+```
+
+> **Prerequisites:** `python3`. macOS also needs Xcode Command Line Tools
+> (`xcode-select --install`); Linux/WSL also needs `notify-send`
+> (`sudo apt install libnotify-bin`); Windows needs Python from
+> [python.org](https://www.python.org/downloads/) ("Add to PATH").
+
+Send a test banner — expect a notification plus the *tring*:
+
+```sh
+~/.copilot/promptring/bin/promptring.py done "promptring works"
 ```
 
 > On macOS, the first banner asks for notification permission — click **Allow**,
 > then set **System Settings → Notifications → Promptring** to **Banners** (new
 > apps sometimes default to "None").
+
+<details>
+<summary><strong>Prefer to install from source?</strong></summary>
+
+```sh
+git clone https://github.com/pratyansh-agrawal/promptring.git
+cd promptring
+./install.sh        # macOS · Linux · WSL
+# Windows:  powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+</details>
 
 ## Usage
 
