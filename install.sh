@@ -81,7 +81,7 @@ cp -R "$REPO/bin"            "$HOME_DIR/bin"
 cp -R "$REPO/sounds"         "$HOME_DIR/sounds"
 cp -R "$REPO/platform"       "$HOME_DIR/platform"
 cp    "$REPO/categories.conf" "$HOME_DIR/categories.conf"
-cp    "$REPO/app/icon.png" "$REPO/app/icon.svg" "$HOME_DIR/app/"
+cp    "$REPO/app/icon.png" "$HOME_DIR/app/"
 find "$HOME_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 chmod +x "$HOME_DIR/bin/promptring.py" "$HOME_DIR/bin/enrich_context.py" \
          "$HOME_DIR/bin/merge-hooks.py" "$HOME_DIR/platform/macos/build.sh" 2>/dev/null || true
@@ -131,28 +131,9 @@ elif [ "$IS_WSL" = 1 ]; then
   fi
 
   if interop_ok; then
-    WIN_USERPROFILE="$(powershell.exe -NoProfile -Command '$env:USERPROFILE' 2>/dev/null | tr -d '\r')"
-    if [ -n "$WIN_USERPROFILE" ]; then
-      WIN_HOME_WSL="$(wslpath "$WIN_USERPROFILE" 2>/dev/null)/.copilot/promptring"
-      mkdir -p "$WIN_HOME_WSL/platform/windows" "$WIN_HOME_WSL/app" "$WIN_HOME_WSL/sounds"
-      cp -R "$HOME_DIR/platform/windows/." "$WIN_HOME_WSL/platform/windows/"
-      cp    "$HOME_DIR/app/icon.png"       "$WIN_HOME_WSL/app/"
-      cp -R "$HOME_DIR/sounds/."           "$WIN_HOME_WSL/sounds/"
-      # register the toast app identity (name + app icon) on the Windows side
-      WIN_ICON="$(wslpath -w "$WIN_HOME_WSL/app/icon.png" 2>/dev/null)"
-      powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
-        \$k='HKCU:\\Software\\Classes\\AppUserModelId\\$AUMID';
-        if (-not (Test-Path \$k)) { New-Item -Path \$k -Force | Out-Null }
-        New-ItemProperty -Path \$k -Name 'DisplayName' -Value 'promptring' -PropertyType String -Force | Out-Null
-        New-ItemProperty -Path \$k -Name 'IconUri' -Value '$WIN_ICON' -PropertyType String -Force | Out-Null
-      " >/dev/null 2>&1 || true
-      ok "bridge installed → $WIN_HOME_WSL"
-      info "promptring runs the Windows toast via powershell.exe from inside WSL."
-    else
-      warn "Could not resolve the Windows user profile; bridge not set up."
-    fi
+    ok "WSL interop OK — promptring renders the Windows toast inline via powershell.exe."
   else
-    warn "WSL interop still unavailable — the Windows toast bridge can't run yet."
+    warn "WSL interop still unavailable — the Windows toast can't render yet."
     info "Fix: run 'wsl --shutdown' from a Windows PowerShell/CMD prompt, reopen this"
     info "distro, and re-run ./install.sh. A full WSL restart re-registers interop."
     info "Installing the Linux/WSLg fallback (notify-send) so promptring can still"
