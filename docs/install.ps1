@@ -7,7 +7,7 @@
     irm https://pratyansh-agrawal.github.io/promptring/install.ps1 | iex
 
   Downloads the latest promptring source into a temp directory and runs the
-  real installer (install.ps1) — no manual clone required. The temp checkout is
+  real installer (install.ps1) - no manual clone required. The temp checkout is
   removed afterward; the install itself lives in ~/.copilot/promptring.
 
   Pin a branch/tag with $env:PROMPTRING_REF, or point at a custom archive with
