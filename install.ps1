@@ -67,7 +67,6 @@ foreach ($d in @('bin', 'sounds', 'platform')) {
 }
 New-Item -ItemType Directory -Force (Join-Path $HomeDir 'app') | Out-Null
 Copy-Item (Join-Path $Repo 'app\icon.png') (Join-Path $HomeDir 'app') -Force
-Copy-Item (Join-Path $Repo 'app\icon.svg') (Join-Path $HomeDir 'app') -Force -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $Repo 'categories.conf') $HomeDir -Force
 Get-ChildItem $HomeDir -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 Write-Ok "copied orchestrator + config + sound + platform backends"
