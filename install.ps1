@@ -9,7 +9,7 @@
        ~/.copilot/promptring  (same layout/location as macOS & Linux).
     2. Generates app/icon.ico from icon.png and registers a Windows app
        identity (AUMID com.promptring.notifier) so toasts show the
-       "promptring" name + app icon — the same identity as the macOS app.
+       "promptring" name + app icon - the same identity as the macOS app.
     3. Merges the Copilot CLI hooks into ~/.copilot/hooks/hooks.json (your
        existing hooks are preserved). On Windows the CLI runs the hook's
        `powershell` command, which invokes `python promptring.py`.
@@ -53,7 +53,7 @@ Write-Info "repo: $Repo"
 $py = (Get-Command python -ErrorAction SilentlyContinue).Source
 if (-not $py) { $py = (Get-Command python3 -ErrorAction SilentlyContinue).Source }
 if (-not $py) {
-  Write-Warn2 "python not found — promptring's orchestrator requires it."
+  Write-Warn2 "python not found - promptring's orchestrator requires it."
   Write-Info  "Install Python 3 (https://www.python.org/downloads/, check 'Add to PATH') and re-run."
   exit 1
 }
@@ -164,7 +164,7 @@ if (Test-Path $legacyWin) { Remove-Item $legacyWin -Recurse -Force -ErrorAction 
 # --- 7. install the promptring instruction block -------------------------
 #  The hooks cover permission_prompt, elicitation_dialog and agentStop, but
 #  the Copilot CLI fires NO hookable event when the agent pauses mid-turn on
-#  the built-in `ask_user` tool — so under --yolo a decision prompt shows no
+#  the built-in `ask_user` tool - so under --yolo a decision prompt shows no
 #  banner. We close that gap by instructing the agent to fire the notifier
 #  itself before calling ask_user. The block is fenced by markers so it can
 #  be refreshed/removed cleanly; its text is the single shared source in
