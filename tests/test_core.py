@@ -116,6 +116,69 @@ class Enrich(unittest.TestCase):
         self.assertNotIn("\n", out)
 
 
+class LastAssistantMessage(unittest.TestCase):
+    @staticmethod
+    def _line(content, ts_ms, typ="assistant.message"):
+        import datetime
+        iso = datetime.datetime.utcfromtimestamp(ts_ms / 1000.0).strftime(
+            "%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        return json.dumps({"type": typ, "timestamp": iso,
+                           "data": {"content": content}})
+
+    def _write(self, lines):
+        fd, path = tempfile.mkstemp(suffix=".jsonl")
+        os.close(fd)
+        with open(path, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
+        self.addCleanup(os.remove, path)
+        return path
+
+    def test_returns_latest_message(self):
+        now = 1781961481103
+        p = self._write([self._line("old answer", now - 60000),
+                         self._line("newest answer", now - 200)])
+        self.assertEqual(
+            enrich.last_assistant_message(p, "", trigger_ts_ms=now, wait=False),
+            "newest answer")
+
+    def test_torn_trailing_line_is_ignored(self):
+        now = 1781961481103
+        p = self._write([self._line("good answer", now - 300),
+                         '{"type": "assistant.message", "data": {"cont'])  # partial
+        self.assertEqual(
+            enrich.last_assistant_message(p, "", trigger_ts_ms=now, wait=False),
+            "good answer")
+
+    def test_wait_picks_fresh_message_once_flushed(self):
+        """The WSL race: only the previous message is visible at first; the
+        current one lands shortly after. wait=True must surface the new one."""
+        import threading, time
+        now = int(time.time() * 1000)
+        p = self._write([self._line("previous turn", now - 60000)])
+
+        def _append_late():
+            time.sleep(0.3)
+            with open(p, "a") as fh:
+                fh.write(self._line("current turn", now - 100) + "\n")
+
+        threading.Thread(target=_append_late, daemon=True).start()
+        out = enrich.last_assistant_message(p, "", trigger_ts_ms=now, wait=True)
+        self.assertEqual(out, "current turn")
+
+    def test_wait_returns_immediately_when_already_fresh(self):
+        import time
+        now = int(time.time() * 1000)
+        p = self._write([self._line("already here", now - 150)])
+        t0 = time.monotonic()
+        out = enrich.last_assistant_message(p, "", trigger_ts_ms=now, wait=True)
+        self.assertEqual(out, "already here")
+        self.assertLess(time.monotonic() - t0, enrich.WAIT_DEADLINE_S)
+
+    def test_no_wait_without_trigger(self):
+        p = self._write([self._line("only answer", 1781961481103 - 90000)])
+        self.assertEqual(enrich.last_assistant_message(p, ""), "only answer")
+
+
 class MergeHooks(unittest.TestCase):
     def _src(self):
         return os.path.join(REPO, "hooks.json")

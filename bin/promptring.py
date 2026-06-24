@@ -87,7 +87,8 @@ def enrich(payload):
         sid = payload.get("session_id") or payload.get("sessionId") or ""
         tp  = payload.get("transcript_path") or payload.get("transcriptPath") or ""
         try:
-            last_msg = enrich_context.last_assistant_message(tp, sid) or ""
+            last_msg = enrich_context.last_assistant_message(
+                tp, sid, trigger_ts_ms=payload.get("timestamp"), wait=IS_WSL) or ""
             summary = enrich_context.summarize(last_msg)
         except Exception:
             summary, last_msg = "", ""
