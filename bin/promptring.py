@@ -96,43 +96,31 @@ def enrich(payload):
 
 # ── intent: is the agent asking for direction, or reporting done? ────
 #  The Copilot CLI fires `agentStop` on *every* turn-end with a hardcoded
-#  stop reason, so it can't tell us "done" from "waiting on you". We infer
-#  it from the agent's closing words instead — a question near the end, or
-#  an explicit ask for direction, means it's really an input request (this
-#  fires even under `--yolo`, where no permission prompt is ever shown).
-_ASK_PATTERNS = re.compile(
-    r"let me know|"
-    r"would you like|do you want|want me to|"
-    r"shall i|should i\b|"
-    r"which (?:option|one|of|would|do you)|"
-    r"please (?:confirm|advise|choose|pick|let me know|clarify|specify)|"
-    r"could you (?:clarify|confirm|tell me|specify)|"
-    r"can you (?:confirm|clarify|tell me|specify)|"
-    r"how would you like|what would you (?:like|prefer)|"
-    r"your call|up to you|pick one|"
-    r"waiting for your|awaiting your|"
-    r"need(?:s)? your (?:input|direction|decision|guidance|call)",
-    re.IGNORECASE,
-)
+#  stop reason, so it can't tell us "done" from "waiting on you". A turn is
+#  an input request only when the agent's *final sentence is a direct
+#  question* (ends with '?'). Polite trailing offers on already-finished
+#  work ("Let me know if you want tweaks.", "Your call.") are statements,
+#  not questions, and must stay 'done' — over-eager phrase matching here was
+#  flipping ordinary completions into false "needs input" banners. Genuine
+#  mid-turn asks still arrive authoritatively via the permission/elicitation
+#  hooks and the ask_user instruction block, so this stays conservative.
 
 
-def _closing(text, lines=4, chars=320):
-    """The tail of the message — where a question usually lives."""
+def _final_sentence(text):
+    """The agent's closing sentence, ignoring fenced code blocks."""
     text = re.sub(r"```.*?```", "", text or "", flags=re.DOTALL)
-    segs = [l.strip() for l in text.splitlines() if l.strip()]
-    return (" ".join(segs[-lines:]) if segs else "")[-chars:]
+    text = " ".join(l.strip() for l in text.splitlines() if l.strip())
+    if not text:
+        return ""
+    sentences = re.findall(r"[^.!?]*[.!?]", text)
+    return (sentences[-1] if sentences else text).strip()
 
 
 def is_input_request(text):
-    """True when the agent's final message is asking the user for direction."""
+    """True only when the agent's closing sentence is a direct question."""
     if not text:
         return False
-    tail = _closing(text)
-    if not tail:
-        return False
-    if "?" in tail[-220:]:
-        return True
-    return bool(_ASK_PATTERNS.search(tail))
+    return _final_sentence(text).endswith("?")
 
 
 def autoinput_enabled():

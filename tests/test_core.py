@@ -194,9 +194,11 @@ class InputRequestDetection(unittest.TestCase):
     def test_offer_to_continue_is_input(self):
         self.assertTrue(pr.is_input_request("Done with phase 1. Want me to start phase 2?"))
 
-    def test_direction_phrase_without_qmark(self):
-        self.assertTrue(pr.is_input_request("Finished the refactor. Let me know how you'd like to proceed."))
-        self.assertTrue(pr.is_input_request("Two options here. Your call."))
+    def test_soft_closing_without_qmark_is_not_input(self):
+        # polite offers that aren't questions must stay 'done'
+        self.assertFalse(pr.is_input_request("Finished the refactor. Let me know how you'd like to proceed."))
+        self.assertFalse(pr.is_input_request("Two options here. Your call."))
+        self.assertFalse(pr.is_input_request("All tests pass. Let me know if you want any tweaks."))
 
     def test_plain_completion_is_not_input(self):
         self.assertFalse(pr.is_input_request("All 19 tests passed and the build is green."))
@@ -207,11 +209,15 @@ class InputRequestDetection(unittest.TestCase):
         self.assertFalse(pr.is_input_request(None))
 
     def test_early_question_does_not_trigger_on_completion(self):
-        # a question buried far above a long completion tail should not flip it
+        # a question buried far above a completion tail should not flip it
         msg = ("Should I have used Postgres? I went with SQLite.\n"
                + "\n".join(f"Step {i} done." for i in range(1, 12))
                + "\nEverything is committed and the suite is green.")
         self.assertFalse(pr.is_input_request(msg))
+
+    def test_question_followed_by_statement_is_not_input(self):
+        # the closing sentence, not an earlier question, decides intent
+        self.assertFalse(pr.is_input_request("Should I deploy? Let me know."))
 
     def test_toggle_env_disables(self):
         os.environ["PROMPTRING_AUTO_INPUT"] = "0"
