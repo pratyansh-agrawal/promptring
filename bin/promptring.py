@@ -27,6 +27,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 HOME_DIR   = os.path.dirname(SCRIPT_DIR)                       # install root
 CONFIG     = os.environ.get("COPILOT_NOTIFY_CONFIG") or os.path.join(HOME_DIR, "categories.conf")
 SOUNDS_DIR = os.path.join(HOME_DIR, "sounds")
+CUSTOM_DIR = os.path.join(SOUNDS_DIR, "custom")                # user-supplied tone
+STATE_FILE = os.environ.get("PROMPTRING_STATE") or os.path.join(HOME_DIR, "state.json")
 ICON_PNG   = os.path.join(HOME_DIR, "app", "icon.png")
 AUMID      = "com.promptring.notifier"
 # Default-registered Windows PowerShell AUMID — lets the WSL-only inline path
@@ -55,6 +57,32 @@ IS_MACOS   = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows" or os.name == "nt"
 IS_WSL     = _is_wsl()
 IS_LINUX   = platform.system() == "Linux" and not IS_WSL
+
+
+# ── persisted state (mute + custom tone) ────────────────────────────
+#  A tiny JSON file the hook reads on every delivery and the CLI flags
+#  write. It's what lets `promptring --mute` / `--tring` set in one
+#  terminal affect the notifications fired from another. Absent/empty =>
+#  {} => every code path behaves exactly as before these features.
+def load_state():
+    """The persisted state dict, or {} on any error (never raises)."""
+    try:
+        with open(STATE_FILE, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_state(state):
+    """Persist `state` to STATE_FILE. Returns True on success."""
+    try:
+        os.makedirs(os.path.dirname(STATE_FILE) or ".", exist_ok=True)
+        with open(STATE_FILE, "w", encoding="utf-8") as fh:
+            json.dump(state, fh, indent=2)
+        return True
+    except Exception:
+        return False
 
 
 # ── hook payload + enrichment ───────────────────────────────────────
@@ -268,6 +296,9 @@ def compose(key, message, label, summary):
     body = message or summary or ""
     title_line = f"promptring — {label}" if label else "promptring"
     subtitle_line = f"{emoji} {status}".strip() if emoji else status
+    # A user-set custom tone (`--tring`) overrides the per-category sound for
+    # every notification; otherwise fall back to the resolved category sound.
+    tone = custom_tone()
     return {
         "category": key,
         "title": title_line,
@@ -276,8 +307,8 @@ def compose(key, message, label, summary):
         "status": status,
         "label": label,
         "icon": ICON_PNG,
-        "sound_name": sound_name,
-        "sound_file": resolve_sound(sound_name),
+        "sound_name": ("custom" if tone else sound_name),
+        "sound_file": (tone or resolve_sound(sound_name)),
     }
 
 
@@ -300,8 +331,21 @@ def resolve_sound(name):
 
 
 def sound_enabled():
-    return os.environ.get("COPILOT_NOTIFY_SOUND", "1").lower() not in (
-        "0", "false", "no", "off")
+    # Env off wins (unchanged). A stored mute is authoritative too — an
+    # explicit COPILOT_NOTIFY_SOUND=1 does NOT override `promptring --mute`.
+    if os.environ.get("COPILOT_NOTIFY_SOUND", "1").lower() in (
+            "0", "false", "no", "off"):
+        return False
+    if load_state().get("muted"):
+        return False
+    return True
+
+
+def custom_tone():
+    """Absolute path to the user's custom tone (from `--tring`), or '' if
+    none is set or the stored file has since gone missing."""
+    tone = load_state().get("tone") or ""
+    return tone if tone and os.path.isfile(tone) else ""
 
 
 # ── delivery backends ───────────────────────────────────────────────
@@ -572,10 +616,104 @@ def deliver(spec):
     return False
 
 
+# ── CLI (mute / custom tone) ────────────────────────────────────────
+#  `promptring --<flag>` is the user-facing control surface, run from any
+#  terminal. It only reads/writes STATE_FILE — the hook path (category
+#  keys, which never start with '--') is untouched.
+_USAGE = (
+    "promptring — notification controls\n"
+    "  promptring --mute            silence the chime (banners still show)\n"
+    "  promptring --unmute          restore the chime\n"
+    "  promptring --tring <path>    use <path> as the chime for all notifications\n"
+    "  promptring --untring         revert to the default chime\n"
+    "  promptring --status          show the current mute state + active tone")
+
+
+def _set_custom_tone(path):
+    """Copy `path` into CUSTOM_DIR and record it as the active tone.
+    Returns (ok, message). Resolves relative paths against the CWD."""
+    src = os.path.abspath(os.path.expanduser(path))
+    if not os.path.isfile(src):
+        return False, f"promptring: no such file: {path}"
+    import shutil
+    warn = ""
+    if os.path.splitext(src)[1].lower().lstrip(".") not in (
+            "wav", "aiff", "mp3", "m4a", "caf", "ogg", "flac"):
+        warn = ("\n  ! unusual audio extension — it may not play on every "
+                "platform (Linux paplay/aplay favour wav/ogg/flac).")
+    try:
+        # Keep exactly one active tone: clear any prior copy first.
+        if os.path.isdir(CUSTOM_DIR):
+            shutil.rmtree(CUSTOM_DIR)
+        os.makedirs(CUSTOM_DIR, exist_ok=True)
+        dst = os.path.join(CUSTOM_DIR, os.path.basename(src))
+        shutil.copyfile(src, dst)
+    except Exception as e:
+        return False, f"promptring: could not set tone ({e})"
+    state = load_state()
+    state["tone"] = dst
+    if not save_state(state):
+        return False, "promptring: could not write state file"
+    return True, f"promptring: custom tone set → {os.path.basename(dst)}{warn}"
+
+
+def _clear_custom_tone():
+    """Drop the custom tone and its copy; revert to the bundled chime."""
+    import shutil
+    state = load_state()
+    state.pop("tone", None)
+    save_state(state)
+    try:
+        if os.path.isdir(CUSTOM_DIR):
+            shutil.rmtree(CUSTOM_DIR)
+    except Exception:
+        pass
+
+
+def handle_cli(args):
+    """Dispatch a `--flag` invocation. Prints a short confirmation and
+    returns an exit code. Never touches notification delivery."""
+    flag = args[0]
+    if flag in ("--mute", "--unmute"):
+        state = load_state()
+        state["muted"] = (flag == "--mute")
+        save_state(state)
+        print("promptring: chime muted (banners still show)." if state["muted"]
+              else "promptring: chime unmuted.")
+        return 0
+    if flag == "--tring":
+        if len(args) < 2 or not args[1]:
+            print("promptring: --tring needs a path to an audio file.\n\n" + _USAGE)
+            return 2
+        ok, msg = _set_custom_tone(args[1])
+        print(msg)
+        return 0 if ok else 1
+    if flag == "--untring":
+        _clear_custom_tone()
+        print("promptring: reverted to the default chime.")
+        return 0
+    if flag == "--status":
+        state = load_state()
+        tone = state.get("tone") or ""
+        tone_disp = (os.path.basename(tone) if tone and os.path.isfile(tone)
+                     else "default (tring)")
+        print("promptring status:")
+        print(f"  chime : {'muted' if state.get('muted') else 'on'}")
+        print(f"  tone  : {tone_disp}")
+        return 0
+    if flag in ("--help", "-h"):
+        print(_USAGE)
+        return 0
+    print(f"promptring: unknown option '{flag}'.\n\n" + _USAGE)
+    return 2
+
+
 # ── main ────────────────────────────────────────────────────────────
 def main(argv):
     if len(argv) < 2 or not argv[1]:
         return 0
+    if argv[1].startswith("-"):          # user-facing control flags
+        return handle_cli(argv[1:])
     key = argv[1]
     message = argv[2] if len(argv) > 2 else ""
     payload = read_payload()

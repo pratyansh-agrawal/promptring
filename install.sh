@@ -87,6 +87,43 @@ chmod +x "$HOME_DIR/bin/promptring.py" "$HOME_DIR/bin/enrich_context.py" \
          "$HOME_DIR/bin/merge-hooks.py" "$HOME_DIR/platform/macos/build.sh" 2>/dev/null || true
 ok "copied orchestrator + config + sound + platform backends"
 
+# ── 1b. install the `promptring` command on PATH ────────────────────
+#  A thin wrapper (not a symlink, so promptring.py resolves its own home
+#  correctly) forwarding to the orchestrator, plus a fenced PATH line in
+#  the user's shell rc. Lets `promptring --mute` / `--tring <file>` run
+#  from any terminal. Idempotent: the fenced block is rewritten in place.
+step "Installing the promptring command"
+SHIM_DIR="$HOME_DIR/shim"
+mkdir -p "$SHIM_DIR"
+cat > "$SHIM_DIR/promptring" <<'SHIM'
+#!/bin/sh
+exec python3 "$HOME/.copilot/promptring/bin/promptring.py" "$@"
+SHIM
+chmod +x "$SHIM_DIR/promptring"
+ok "launcher → $SHIM_DIR/promptring"
+
+# pick the rc that actually runs for the user's login shell
+case "$(basename "${SHELL:-}")" in
+  zsh)  RC="$HOME/.zshrc" ;;
+  bash) RC="$HOME/.bashrc" ;;
+  *)    RC="$HOME/.profile" ;;
+esac
+[ -e "$RC" ] || : > "$RC"
+# strip any previous promptring PATH block, then append a fresh one
+awk '
+  index($0, "promptring:path:start") { skip = 1; next }
+  skip && index($0, "promptring:path:end") { skip = 0; next }
+  skip { next }
+  { print }
+' "$RC" > "$RC.tmp" && mv "$RC.tmp" "$RC"
+{
+  printf '# promptring:path:start\n'
+  printf 'export PATH="%s:$PATH"\n' "$SHIM_DIR"
+  printf '# promptring:path:end\n'
+} >> "$RC"
+ok "added $SHIM_DIR to PATH in $RC"
+info "open a new terminal (or 'source $RC'), then: promptring --mute · promptring --tring <file>"
+
 # ── 2. platform-specific delivery setup ─────────────────────────────
 if [ "$OS" = "Darwin" ]; then
   step "Building Promptring.app (notification agent)"
@@ -213,6 +250,8 @@ ${B}Next steps${X}
   ${DIM}1.${X} Fire a test banner:
        ${C}$HOME_DIR/bin/promptring.py done "promptring works"${X}
   ${DIM}2.${X} Restart your Copilot CLI session so the hook loads.
+  ${DIM}3.${X} In a ${B}new${X} terminal, control the chime:
+       ${C}promptring --mute${X}   ·   ${C}promptring --tring <file>${X}   ·   ${C}promptring --status${X}
 EOF
 if [ "$OS" = "Darwin" ]; then
   cat <<EOF

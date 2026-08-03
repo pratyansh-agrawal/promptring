@@ -106,6 +106,25 @@ To send a **prompt notification** by hand:
 
 Unknown categories fall back to a generic 🔔 banner.
 
+### Control the chime
+
+The installer also puts a **`promptring`** command on your PATH. Open a **new**
+terminal and use it to mute the sound or set your own tone — from anywhere, with
+no config editing. On-screen banners are unaffected; only the sound changes.
+
+```sh
+promptring --mute              # silence the chime (banners still show)
+promptring --unmute            # bring it back
+promptring --tring ~/alert.mp3 # use your own audio for every notification
+promptring --untring           # revert to the bundled tring
+promptring --status            # show the current mute state + active tone
+```
+
+The custom tone is copied into `~/.copilot/promptring`, so it keeps working even
+if you later move or delete the original file. Most audio formats play on macOS,
+Windows, and WSL; on plain Linux the `paplay`/`aplay` players favor `wav`/`ogg`/
+`flac`, so prefer those there.
+
 ## Customize
 
 Edit [`categories.conf`](./categories.conf) to change any emoji, wording, or
@@ -121,7 +140,7 @@ A few environment variables fine-tune behavior:
 
 | Variable | Default | Effect |
 | --- | --- | --- |
-| `COPILOT_NOTIFY_SOUND` | `1` | Set `0` to mute the bundled chime. |
+| `COPILOT_NOTIFY_SOUND` | `1` | Set `0` to mute the chime for one session. For a persistent, terminal-wide mute use `promptring --mute` instead. |
 | `PROMPTRING_AUTO_INPUT` | `1` | Set `0` to stop re-tagging a finished turn as 🟡 when the agent ends by asking you a question. |
 | `PROMPTRING_DEBUG` | – | Set `1` to log delivery decisions to `~/.copilot/promptring/promptring.log`. |
 | `COPILOT_NOTIFY_CONFIG` | – | Path to an alternate `categories.conf`. |
@@ -151,6 +170,8 @@ python3 ~/.copilot/promptring/bin/merge-hooks.py remove ~/.copilot/hooks/hooks.j
 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
   -u "$HOME/.copilot/promptring/platform/macos/Promptring.app"
 rm -rf ~/.copilot/promptring
+# drop the PATH line the installer added (in ~/.zshrc, ~/.bashrc, or ~/.profile):
+#   # promptring:path:start … # promptring:path:end
 ```
 
 ```powershell
@@ -158,6 +179,10 @@ rm -rf ~/.copilot/promptring
 python "$env:USERPROFILE\.copilot\promptring\bin\merge-hooks.py" remove "$env:USERPROFILE\.copilot\hooks\hooks.json"
 Remove-Item -Recurse -Force "$env:USERPROFILE\.copilot\promptring"
 Remove-Item -Recurse -Force "HKCU:\Software\Classes\AppUserModelId\com.promptring.notifier"
+# drop the shim folder from your user PATH
+$shim = Join-Path $env:USERPROFILE '.copilot\promptring\shim'
+$p = ([Environment]::GetEnvironmentVariable('Path','User') -split ';' | Where-Object { $_ -ne $shim }) -join ';'
+[Environment]::SetEnvironmentVariable('Path', $p, 'User')
 ```
 
 ---

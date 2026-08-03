@@ -71,6 +71,30 @@ Copy-Item (Join-Path $Repo 'categories.conf') $HomeDir -Force
 Get-ChildItem $HomeDir -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 Write-Ok "copied orchestrator + config + sound + platform backends"
 
+# --- 1b. install the `promptring` command on PATH ------------------------
+#  A tiny .cmd shim forwarding to the orchestrator, plus its folder on the
+#  USER PATH, so `promptring --mute` / `--tring <file>` run from any terminal.
+#  Idempotent: the shim is rewritten and the PATH entry added only if absent.
+Write-Step "Installing the promptring command"
+$ShimDir = Join-Path $HomeDir 'shim'
+New-Item -ItemType Directory -Force $ShimDir | Out-Null
+$shim = @(
+  '@echo off',
+  'python "%USERPROFILE%\.copilot\promptring\bin\promptring.py" %*'
+)
+Set-Content -LiteralPath (Join-Path $ShimDir 'promptring.cmd') -Value $shim -Encoding ASCII
+Write-Ok "launcher -> $ShimDir\promptring.cmd"
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+if (-not $userPath) { $userPath = '' }
+if (($userPath -split ';') -notcontains $ShimDir) {
+  $newPath = if ($userPath) { "$ShimDir;$userPath" } else { $ShimDir }
+  [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+  Write-Ok "added $ShimDir to your user PATH"
+} else {
+  Write-Ok "$ShimDir already on your user PATH"
+}
+Write-Info "open a NEW terminal, then: promptring --mute . promptring --tring <file>"
+
 # --- 2. generate icon.ico from icon.png ----------------------------------
 Write-Step "Generating app icon"
 $iconPng = Join-Path $HomeDir 'app\icon.png'
@@ -211,5 +235,7 @@ Write-Host "Next steps" -ForegroundColor White
 Write-Info "1. Fire a test banner:"
 Write-Info "     python `"$HomeDir\bin\promptring.py`" done `"hello`""
 Write-Info "2. Restart your Copilot CLI session so the hook loads."
+Write-Info "3. In a NEW terminal, control the chime:"
+Write-Info "     promptring --mute  .  promptring --tring <file>  .  promptring --status"
 Write-Info "Everything lives under ~/.copilot/promptring now - you can delete this clone."
 Write-Host ""
