@@ -178,6 +178,39 @@ class MuteAndTone(unittest.TestCase):
         spec = pr.compose("done", "x", "s", "")
         self.assertEqual(spec["sound_name"], "tring")
 
+    def test_corrupt_state_falls_back_to_bundled_sound(self):
+        # a truncated / non-JSON state file must degrade to the shipped chime,
+        # never crash and never silence delivery
+        with open(self._state, "w") as fh:
+            fh.write("{ this is not valid json ")
+        self.assertEqual(pr.load_state(), {})
+        self.assertTrue(pr.sound_enabled())
+        spec = pr.compose("done", "x", "s", "")
+        self.assertEqual(spec["sound_name"], "tring")
+        self.assertTrue(spec["sound_file"].endswith("tring.mp3"))
+
+    def test_non_dict_state_falls_back(self):
+        # valid JSON that isn't an object (e.g. a list) is treated as empty
+        with open(self._state, "w") as fh:
+            fh.write("[1, 2, 3]")
+        self.assertEqual(pr.load_state(), {})
+
+    def test_save_state_is_atomic_no_temp_left(self):
+        self.assertTrue(pr.save_state({"muted": True}))
+        self.assertEqual(pr.load_state(), {"muted": True})
+        # the temp file used for the atomic rename must not linger
+        leftovers = [f for f in os.listdir(os.path.dirname(self._state))
+                     if f.startswith(".state-")]
+        self.assertEqual(leftovers, [])
+
+    def test_mute_reports_failure_when_save_fails(self):
+        saved = pr.save_state
+        try:
+            pr.save_state = lambda state: False      # simulate an unwritable disk
+            self.assertEqual(pr.handle_cli(["--mute"]), 1)
+        finally:
+            pr.save_state = saved
+
     def test_tring_missing_file_is_error(self):
         self.assertEqual(pr.handle_cli(["--tring", "/nope/missing.wav"]), 1)
         self.assertFalse(pr.load_state().get("tone"))

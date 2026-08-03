@@ -75,11 +75,29 @@ def load_state():
 
 
 def save_state(state):
-    """Persist `state` to STATE_FILE. Returns True on success."""
+    """Persist `state` to STATE_FILE atomically. Returns True on success.
+
+    Writes to a temp file in the same directory, fsyncs it, then renames it
+    into place — os.replace is atomic on POSIX and Windows, so a concurrent
+    reader (or a crash mid-write) can never see a half-written/corrupt
+    state.json and lose the user's mute/tone settings."""
+    import tempfile
     try:
-        os.makedirs(os.path.dirname(STATE_FILE) or ".", exist_ok=True)
-        with open(STATE_FILE, "w", encoding="utf-8") as fh:
-            json.dump(state, fh, indent=2)
+        d = os.path.dirname(STATE_FILE) or "."
+        os.makedirs(d, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=".state-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(state, fh, indent=2)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, STATE_FILE)
+        except Exception:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
         return True
     except Exception:
         return False
@@ -658,16 +676,18 @@ def _set_custom_tone(path):
 
 
 def _clear_custom_tone():
-    """Drop the custom tone and its copy; revert to the bundled chime."""
+    """Drop the custom tone and its copy; revert to the bundled chime.
+    Returns True if the state write succeeded."""
     import shutil
     state = load_state()
     state.pop("tone", None)
-    save_state(state)
+    ok = save_state(state)
     try:
         if os.path.isdir(CUSTOM_DIR):
             shutil.rmtree(CUSTOM_DIR)
     except Exception:
         pass
+    return ok
 
 
 def handle_cli(args):
@@ -677,7 +697,9 @@ def handle_cli(args):
     if flag in ("--mute", "--unmute"):
         state = load_state()
         state["muted"] = (flag == "--mute")
-        save_state(state)
+        if not save_state(state):
+            print("promptring: could not write state file — setting not saved.")
+            return 1
         print("promptring: chime muted (banners still show)." if state["muted"]
               else "promptring: chime unmuted.")
         return 0
@@ -689,7 +711,9 @@ def handle_cli(args):
         print(msg)
         return 0 if ok else 1
     if flag == "--untring":
-        _clear_custom_tone()
+        if not _clear_custom_tone():
+            print("promptring: could not write state file — setting not saved.")
+            return 1
         print("promptring: reverted to the default chime.")
         return 0
     if flag == "--status":
