@@ -1,6 +1,11 @@
 # Built per-machine by install.sh — never committed (ad-hoc signing is local)
 app/Promptring.app/
 
+# Runtime state written by the promptring CLI (--mute / --tring) — never committed
+state.json
+sounds/custom/
+promptring.log
+
 # macOS cruft
 .DS_Store
 platform/macos/Promptring.app/

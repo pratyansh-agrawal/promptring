@@ -99,6 +99,126 @@ class Sound(unittest.TestCase):
         del os.environ["COPILOT_NOTIFY_SOUND"]
 
 
+class MuteAndTone(unittest.TestCase):
+    """`--mute` / `--tring` persist to a state file the delivery path reads."""
+
+    def setUp(self):
+        # isolate each test on its own state file + custom-tone dir
+        fd, self._state = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.remove(self._state)                       # start with no state
+        self._saved_state = os.environ.get("PROMPTRING_STATE")
+        os.environ["PROMPTRING_STATE"] = self._state
+        pr.STATE_FILE = self._state
+        self._saved_custom = pr.CUSTOM_DIR
+        pr.CUSTOM_DIR = os.path.join(tempfile.mkdtemp(), "custom")
+
+    def tearDown(self):
+        import shutil
+        if self._saved_state is None:
+            os.environ.pop("PROMPTRING_STATE", None)
+        else:
+            os.environ["PROMPTRING_STATE"] = self._saved_state
+        pr.STATE_FILE = self._saved_state or os.path.join(
+            os.path.dirname(BIN), "state.json")
+        for p in (self._state, os.path.dirname(pr.CUSTOM_DIR)):
+            shutil.rmtree(p, ignore_errors=True) if os.path.isdir(p) else (
+                os.path.exists(p) and os.remove(p))
+        pr.CUSTOM_DIR = self._saved_custom
+
+    # --- mute ---------------------------------------------------------
+    def test_no_state_keeps_sound_on(self):
+        self.assertTrue(pr.sound_enabled())
+
+    def test_mute_flag_silences_then_unmute_restores(self):
+        self.assertEqual(pr.handle_cli(["--mute"]), 0)
+        self.assertTrue(pr.load_state().get("muted"))
+        self.assertFalse(pr.sound_enabled())
+        self.assertEqual(pr.handle_cli(["--unmute"]), 0)
+        self.assertFalse(pr.load_state().get("muted"))
+        self.assertTrue(pr.sound_enabled())
+
+    def test_env_off_still_wins_when_unmuted(self):
+        pr.handle_cli(["--unmute"])
+        os.environ["COPILOT_NOTIFY_SOUND"] = "0"
+        try:
+            self.assertFalse(pr.sound_enabled())
+        finally:
+            del os.environ["COPILOT_NOTIFY_SOUND"]
+
+    # --- custom tone --------------------------------------------------
+    def _make_tone(self):
+        d = tempfile.mkdtemp()
+        src = os.path.join(d, "mine.wav")
+        with open(src, "wb") as fh:
+            fh.write(b"RIFFdummy")
+        return src
+
+    def test_tring_copies_and_compose_uses_it(self):
+        src = self._make_tone()
+        self.assertEqual(pr.handle_cli(["--tring", src]), 0)
+        tone = pr.load_state().get("tone")
+        self.assertTrue(tone and os.path.isfile(tone))
+        self.assertEqual(os.path.dirname(tone), pr.CUSTOM_DIR)   # copied, not referenced
+        spec = pr.compose("done", "x", "s", "")
+        self.assertEqual(spec["sound_file"], tone)
+        self.assertEqual(spec["sound_name"], "custom")
+
+    def test_untring_reverts_to_bundled(self):
+        pr.handle_cli(["--tring", self._make_tone()])
+        self.assertEqual(pr.handle_cli(["--untring"]), 0)
+        self.assertFalse(pr.load_state().get("tone"))
+        self.assertFalse(os.path.isdir(pr.CUSTOM_DIR))
+        spec = pr.compose("done", "x", "s", "")
+        self.assertEqual(spec["sound_name"], "tring")           # bundled default
+
+    def test_missing_tone_falls_back(self):
+        # a stored tone whose file has vanished must not break compose
+        pr.save_state({"tone": "/nope/does-not-exist.wav"})
+        spec = pr.compose("done", "x", "s", "")
+        self.assertEqual(spec["sound_name"], "tring")
+
+    def test_corrupt_state_falls_back_to_bundled_sound(self):
+        # a truncated / non-JSON state file must degrade to the shipped chime,
+        # never crash and never silence delivery
+        with open(self._state, "w") as fh:
+            fh.write("{ this is not valid json ")
+        self.assertEqual(pr.load_state(), {})
+        self.assertTrue(pr.sound_enabled())
+        spec = pr.compose("done", "x", "s", "")
+        self.assertEqual(spec["sound_name"], "tring")
+        self.assertTrue(spec["sound_file"].endswith("tring.mp3"))
+
+    def test_non_dict_state_falls_back(self):
+        # valid JSON that isn't an object (e.g. a list) is treated as empty
+        with open(self._state, "w") as fh:
+            fh.write("[1, 2, 3]")
+        self.assertEqual(pr.load_state(), {})
+
+    def test_save_state_is_atomic_no_temp_left(self):
+        self.assertTrue(pr.save_state({"muted": True}))
+        self.assertEqual(pr.load_state(), {"muted": True})
+        # the temp file used for the atomic rename must not linger
+        leftovers = [f for f in os.listdir(os.path.dirname(self._state))
+                     if f.startswith(".state-")]
+        self.assertEqual(leftovers, [])
+
+    def test_mute_reports_failure_when_save_fails(self):
+        saved = pr.save_state
+        try:
+            pr.save_state = lambda state: False      # simulate an unwritable disk
+            self.assertEqual(pr.handle_cli(["--mute"]), 1)
+        finally:
+            pr.save_state = saved
+
+    def test_tring_missing_file_is_error(self):
+        self.assertEqual(pr.handle_cli(["--tring", "/nope/missing.wav"]), 1)
+        self.assertFalse(pr.load_state().get("tone"))
+
+    def test_unknown_flag_is_usage_error(self):
+        self.assertEqual(pr.handle_cli(["--wat"]), 2)
+
+
 class Enrich(unittest.TestCase):
     def test_summarize_strips_markdown(self):
         out = enrich.summarize("## Done\n- **fixed** the `bug`")
