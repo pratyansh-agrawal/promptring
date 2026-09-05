@@ -11,6 +11,8 @@ import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN = os.path.join(REPO, "bin")
@@ -215,8 +217,53 @@ class MuteAndTone(unittest.TestCase):
         self.assertEqual(pr.handle_cli(["--tring", "/nope/missing.wav"]), 1)
         self.assertFalse(pr.load_state().get("tone"))
 
-    def test_unknown_flag_is_usage_error(self):
-        self.assertEqual(pr.handle_cli(["--wat"]), 2)
+    def test_check_delivers_test_notification(self):
+        delivered = []
+        saved = pr.deliver
+        try:
+            pr.deliver = lambda spec: delivered.append(spec) or True
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(pr.handle_cli(["--check"]), 0)
+        finally:
+            pr.deliver = saved
+        self.assertEqual(len(delivered), 1)
+        self.assertEqual(delivered[0]["category"], "info")
+        self.assertIn("test notification sent", output.getvalue())
+
+    def test_check_reports_delivery_failure(self):
+        saved = pr.deliver
+        try:
+            pr.deliver = lambda spec: False
+            error = StringIO()
+            with redirect_stderr(error):
+                self.assertEqual(pr.handle_cli(["--check"]), 1)
+        finally:
+            pr.deliver = saved
+        self.assertIn("could not be delivered", error.getvalue())
+
+    def test_info_lists_all_commands(self):
+        output = StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(pr.handle_cli(["--info"]), 0)
+        for command in (
+                "--check", "--mute", "--unmute", "--tring", "--untring",
+                "--status", "--info", "--help", "-h"):
+            self.assertIn(command, output.getvalue())
+
+    def test_unknown_flag_is_controlled_usage_error(self):
+        error = StringIO()
+        with redirect_stderr(error):
+            self.assertEqual(pr.handle_cli(["--wat"]), 2)
+        self.assertIn("invalid command '--wat'", error.getvalue())
+        self.assertIn("--check", error.getvalue())
+        self.assertIn("--info", error.getvalue())
+
+    def test_extra_arguments_are_usage_error(self):
+        error = StringIO()
+        with redirect_stderr(error):
+            self.assertEqual(pr.handle_cli(["--mute", "unexpected"]), 2)
+        self.assertIn("invalid command '--mute unexpected'", error.getvalue())
 
 
 class Enrich(unittest.TestCase):
