@@ -639,12 +639,22 @@ def deliver(spec):
 #  terminal. It only reads/writes STATE_FILE — the hook path (category
 #  keys, which never start with '--') is untouched.
 _USAGE = (
-    "promptring — notification controls\n"
+    "promptring - notification controls\n"
+    "  promptring --check           send a test notification and play the active chime\n"
     "  promptring --mute            silence the chime (banners still show)\n"
     "  promptring --unmute          restore the chime\n"
     "  promptring --tring <path>    use <path> as the chime for all notifications\n"
     "  promptring --untring         revert to the default chime\n"
-    "  promptring --status          show the current mute state + active tone")
+    "  promptring --status          show the current mute state + active tone\n"
+    "  promptring --info            show all available commands\n"
+    "  promptring --help, -h        aliases for --info")
+
+
+def _invalid_command(args):
+    command = " ".join(args)
+    print(f"promptring: invalid command '{command}'.\n\n{_USAGE}",
+          file=sys.stderr)
+    return 2
 
 
 def _set_custom_tone(path):
@@ -693,8 +703,12 @@ def _clear_custom_tone():
 def handle_cli(args):
     """Dispatch a `--flag` invocation. Prints a short confirmation and
     returns an exit code. Never touches notification delivery."""
+    if not args:
+        return _invalid_command(args)
     flag = args[0]
     if flag in ("--mute", "--unmute"):
+        if len(args) != 1:
+            return _invalid_command(args)
         state = load_state()
         state["muted"] = (flag == "--mute")
         if not save_state(state):
@@ -704,19 +718,26 @@ def handle_cli(args):
               else "promptring: chime unmuted.")
         return 0
     if flag == "--tring":
-        if len(args) < 2 or not args[1]:
-            print("promptring: --tring needs a path to an audio file.\n\n" + _USAGE)
+        if len(args) != 2 or not args[1]:
+            if len(args) > 2:
+                return _invalid_command(args)
+            print("promptring: --tring needs a path to an audio file.\n\n" + _USAGE,
+                  file=sys.stderr)
             return 2
         ok, msg = _set_custom_tone(args[1])
         print(msg)
         return 0 if ok else 1
     if flag == "--untring":
+        if len(args) != 1:
+            return _invalid_command(args)
         if not _clear_custom_tone():
             print("promptring: could not write state file — setting not saved.")
             return 1
         print("promptring: reverted to the default chime.")
         return 0
     if flag == "--status":
+        if len(args) != 1:
+            return _invalid_command(args)
         state = load_state()
         tone = state.get("tone") or ""
         tone_disp = (os.path.basename(tone) if tone and os.path.isfile(tone)
@@ -725,11 +746,22 @@ def handle_cli(args):
         print(f"  chime : {'muted' if state.get('muted') else 'on'}")
         print(f"  tone  : {tone_disp}")
         return 0
-    if flag in ("--help", "-h"):
+    if flag == "--check":
+        if len(args) != 1:
+            return _invalid_command(args)
+        spec = compose("info", "Test notification delivered successfully.", "", "")
+        if not deliver(spec):
+            print("promptring: test notification could not be delivered.",
+                  file=sys.stderr)
+            return 1
+        print("promptring: test notification sent.")
+        return 0
+    if flag in ("--info", "--help", "-h"):
+        if len(args) != 1:
+            return _invalid_command(args)
         print(_USAGE)
         return 0
-    print(f"promptring: unknown option '{flag}'.\n\n" + _USAGE)
-    return 2
+    return _invalid_command(args)
 
 
 # ── main ────────────────────────────────────────────────────────────

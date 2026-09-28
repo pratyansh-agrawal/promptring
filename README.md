@@ -45,6 +45,14 @@ input, or hits a blocker. Switch to another window and you'll still catch the
 One line, no clone. The installer lands everything in `~/.copilot/promptring`;
 restart the Copilot CLI afterward so the hook loads.
 
+**npm**
+
+```sh
+npm install --global promptring
+```
+
+The npm postinstall runs the same OS-aware setup as the one-line installer.
+
 **macOS · Linux · WSL**
 
 ```sh
@@ -113,11 +121,13 @@ terminal and use it to mute the sound or set your own tone — from anywhere, wi
 no config editing. On-screen banners are unaffected; only the sound changes.
 
 ```sh
+promptring --check             # send a test notification and play the active chime
 promptring --mute              # silence the chime (banners still show)
 promptring --unmute            # bring it back
 promptring --tring ~/alert.mp3 # use your own audio for every notification
 promptring --untring           # revert to the bundled tring
 promptring --status            # show the current mute state + active tone
+promptring --info              # list all available commands
 ```
 
 The custom tone is copied into `~/.copilot/promptring`, so it keeps working even
