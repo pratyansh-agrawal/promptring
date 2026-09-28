@@ -1,0 +1,55 @@
+{
+  "name": "promptring",
+  "version": "1.0.0",
+  "description": "Native desktop notifications for GitHub Copilot CLI on macOS, Windows, Linux, and WSL.",
+  "keywords": [
+    "copilot",
+    "github-copilot",
+    "notifications",
+    "desktop-notifications",
+    "cli",
+    "hooks"
+  ],
+  "homepage": "https://pratyansh-agrawal.github.io/promptring/",
+  "bugs": {
+    "url": "https://github.com/pratyansh-agrawal/promptring/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pratyansh-agrawal/promptring.git"
+  },
+  "license": "MIT",
+  "author": "Pratyansh Agrawal",
+  "type": "module",
+  "bin": {
+    "promptring": "npm-cli.js"
+  },
+  "files": [
+    "app/icon.png",
+    "bin/",
+    "platform/macos/build.sh",
+    "platform/macos/Info.plist",
+    "platform/macos/src/",
+    "platform/windows/",
+    "sounds/tring.mp3",
+    "categories.conf",
+    "copilot-instructions.block.md",
+    "hooks.json",
+    "install.sh",
+    "install.ps1",
+    "npm-cli.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "python3 tests/test_core.py && PROMPTRING_DRYRUN=1 bash tests/smoke.sh",
+    "postinstall": "node npm-cli.js install",
+    "prepack": "node --check npm-cli.js && npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

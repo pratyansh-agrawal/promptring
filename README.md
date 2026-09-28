@@ -45,6 +45,14 @@ input, or hits a blocker. Switch to another window and you'll still catch the
 One line, no clone. The installer lands everything in `~/.copilot/promptring`;
 restart the Copilot CLI afterward so the hook loads.
 
+**npm**
+
+```sh
+npm install --global promptring
+```
+
+The npm postinstall runs the same OS-aware setup as the one-line installer.
+
 **macOS · Linux · WSL**
 
 ```sh
