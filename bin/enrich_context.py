@@ -14,10 +14,20 @@ This reads that payload and prints two lines to STDOUT:
 terminal tab title can't be resolved. Either line may be empty. Always
 exits 0 and never raises — notifications must never fail the calling turn.
 """
-import sys, os, json, glob, re
+import sys, os, json, glob, re, time, datetime
 
 MAX = 140  # max summary length
 MIN_MEANINGFUL = 12  # shorter cleaned lines are treated as lead-ins/labels
+
+# When the calling agent has just finished a turn, the final assistant.message
+# may not yet be flush-visible to this separately-spawned reader process — most
+# notably on WSL, where writes from the Linux CLI propagate to a concurrent
+# reader with a small delay (or the last line is read mid-write). Without this,
+# the notification shows the *previous* turn's message. When wait=True we briefly
+# poll until the newest message belongs to the turn that just ended.
+WAIT_DEADLINE_S = 1.5     # hard cap on added latency (never hang the hook)
+WAIT_STEP_S = 0.1
+FRESH_WINDOW_MS = 2000    # a turn's final message lands within ~2s of its stop
 
 
 def _clean_md(line):
@@ -61,8 +71,70 @@ def summarize(text):
     return chosen
 
 
-def last_assistant_message(transcript_path, session_id):
-    """Return the content of the final assistant.message in the transcript."""
+def _parse_iso_ms(s):
+    """ISO-8601 timestamp (e.g. '2026-06-20T13:18:18.708Z') -> epoch ms, or None."""
+    if not s:
+        return None
+    try:
+        s = s.strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return int(datetime.datetime.fromisoformat(s).timestamp() * 1000)
+    except Exception:
+        return None
+
+
+def _scan_file(path):
+    """(content, ts_ms) of the last parseable assistant.message in `path`.
+
+    Returns ('', None) if none. A final line that fails to parse (a torn,
+    mid-flush write) is ignored — the loop simply keeps the last clean message,
+    and the caller's wait loop will re-read once the write completes."""
+    content, ts_ms = "", None
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for ln in fh:
+                s = ln.strip()
+                if not s or '"assistant.message"' not in s:
+                    continue
+                try:
+                    obj = json.loads(s)
+                except Exception:
+                    continue
+                if obj.get("type") == "assistant.message":
+                    c = (obj.get("data") or {}).get("content")
+                    if c:
+                        content = c
+                        ts_ms = _parse_iso_ms(obj.get("timestamp"))
+    except Exception:
+        return "", None
+    return content, ts_ms
+
+
+def _read_freshest(paths):
+    """Freshest (content, ts_ms) across candidate files, chosen by timestamp.
+
+    Picking by timestamp (rather than the first file that has any content) means
+    that if one source lags behind another, we still surface the newest message."""
+    best = ("", None)
+    for p in paths:
+        if not p or not os.path.isfile(p):
+            continue
+        c, ts = _scan_file(p)
+        if not c:
+            continue
+        if best[1] is None or (ts is not None and ts > best[1]):
+            best = (c, ts)
+    return best
+
+
+def last_assistant_message(transcript_path, session_id, trigger_ts_ms=None, wait=False):
+    """Return the content of the final assistant.message in the transcript.
+
+    `trigger_ts_ms` is the agentStop trigger time (epoch ms). With `wait=True`,
+    the reader briefly polls until it sees a message from the turn that just
+    ended — fixing the WSL case where the latest message isn't yet flush-visible
+    and the previous turn's message would otherwise be shown."""
     paths = []
     if transcript_path:
         paths.append(transcript_path)
@@ -70,29 +142,43 @@ def last_assistant_message(transcript_path, session_id):
         home = os.path.expanduser("~")
         paths.append(os.path.join(
             home, ".copilot", "session-state", session_id, "events.jsonl"))
+    # de-dupe (the agentStop payload's transcriptPath is usually events.jsonl)
+    seen, uniq = set(), []
     for p in paths:
-        try:
-            if not p or not os.path.isfile(p):
-                continue
-            last = ""
-            with open(p, encoding="utf-8", errors="replace") as fh:
-                for ln in fh:
-                    ln = ln.strip()
-                    if not ln or '"assistant.message"' not in ln:
-                        continue
-                    try:
-                        obj = json.loads(ln)
-                    except Exception:
-                        continue
-                    if obj.get("type") == "assistant.message":
-                        content = (obj.get("data") or {}).get("content")
-                        if content:
-                            last = content
-            if last:
-                return last
-        except Exception:
+        key = os.path.abspath(p) if p else p
+        if key in seen:
             continue
-    return ""
+        seen.add(key)
+        uniq.append(p)
+    paths = uniq
+
+    try:
+        trigger_ts_ms = int(trigger_ts_ms) if trigger_ts_ms is not None else None
+    except Exception:
+        trigger_ts_ms = None
+
+    content, ts_ms = _read_freshest(paths)
+    if not wait or trigger_ts_ms is None:
+        return content
+
+    def _fresh(ts):
+        return ts is not None and (trigger_ts_ms - ts) <= FRESH_WINDOW_MS
+
+    deadline = time.monotonic() + WAIT_DEADLINE_S
+    while not _fresh(ts_ms) and time.monotonic() < deadline:
+        time.sleep(WAIT_STEP_S)
+        c, t = _read_freshest(paths)
+        if c:
+            content, ts_ms = c, t
+    return content
+
+
+def _is_wsl():
+    try:
+        with open("/proc/version", encoding="utf-8", errors="replace") as f:
+            return "microsoft" in f.read().lower()
+    except Exception:
+        return False
 
 
 def main():
@@ -109,7 +195,9 @@ def main():
     transcript = payload.get("transcript_path") or payload.get("transcriptPath") or ""
 
     tab = os.path.basename(cwd.rstrip("/")) if cwd else ""
-    summary = summarize(last_assistant_message(transcript, session_id))
+    summary = summarize(last_assistant_message(
+        transcript, session_id,
+        trigger_ts_ms=payload.get("timestamp"), wait=_is_wsl()))
 
     print(tab)
     print(summary)
