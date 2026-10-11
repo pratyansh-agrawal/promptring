@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>promptring — desktop notifications for the GitHub Copilot CLI (macOS · Windows · Linux · WSL)</title>
-  <meta name="description" content="promptring (prompt·tring) fires real desktop notification banners when your GitHub Copilot CLI agent finishes a task, needs your input, or hits a blocker. Native banners on the latest macOS Copilot CLI — powered by Claude — plus Windows, Linux and WSL, with python3 as the only dependency, from any terminal (Terminal.app, iTerm2, VS Code). Built by Pratyansh Agrawal.">
+  <meta name="description" content="promptring (prompt·tring) fires real desktop notification banners when your GitHub Copilot CLI agent finishes a task, needs your input, or hits a blocker. Install from npm for native banners on macOS, Windows, Linux and WSL.">
   <meta name="keywords" content="promptring, prompt-tring, prompt, notify, copilot notify, GitHub Copilot CLI, copilot cli notifications, latest macOS Copilot, macOS notifications, windows toast notification, linux notify-send, wsl notifications, cross-platform, claude notification, claude agent notifications, desktop banner, iTerm2, Terminal.app, Windows Terminal, developer tools, Pratyansh Agrawal, agent notifications">
   <meta name="author" content="Pratyansh Agrawal">
   <meta name="robots" content="index, follow">
@@ -18,7 +18,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="promptring">
   <meta property="og:title" content="promptring — desktop notifications for the GitHub Copilot CLI">
-  <meta property="og:description" content="Real native notification banners — on macOS, Windows, Linux & WSL — when your Copilot CLI agent finishes, needs input, or is blocked. One dependency (python3), works from any terminal.">
+  <meta property="og:description" content="Install from npm for native desktop notifications on macOS, Windows, Linux and WSL when your Copilot CLI agent finishes, needs input, or is blocked.">
   <meta property="og:url" content="https://pratyansh-agrawal.github.io/promptring/">
   <meta property="og:image" content="https://pratyansh-agrawal.github.io/promptring/media/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -28,7 +28,7 @@
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="promptring — desktop notifications for the GitHub Copilot CLI">
-  <meta name="twitter:description" content="Real native notification banners — on macOS, Windows, Linux & WSL — when your Copilot CLI agent finishes, needs input, or is blocked. One dependency (python3), works from any terminal.">
+  <meta name="twitter:description" content="Install from npm for native desktop notifications on macOS, Windows, Linux and WSL when your Copilot CLI agent finishes, needs input, or is blocked.">
   <meta name="twitter:image" content="https://pratyansh-agrawal.github.io/promptring/media/og-image.png">
 
   <!-- Structured data -->
@@ -40,9 +40,9 @@
     "alternateName": "prompt-tring",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "macOS, Windows, Linux, Windows Subsystem for Linux",
-    "description": "Desktop notifications for the GitHub Copilot CLI — get a prompt/notify banner the moment a Claude-powered agent finishes a task, needs your input, or hits a blocker. Native banners on the latest macOS Copilot CLI plus Windows, Linux and WSL, from any terminal, with python3 as the only dependency.",
+    "description": "Desktop notifications for the GitHub Copilot CLI. Install from npm for native banners on macOS, Windows, Linux and WSL when an agent finishes, needs input, or hits a blocker.",
     "url": "https://pratyansh-agrawal.github.io/promptring/",
-    "downloadUrl": "https://github.com/pratyansh-agrawal/promptring",
+    "downloadUrl": "https://www.npmjs.com/package/promptring",
     "image": "https://pratyansh-agrawal.github.io/promptring/media/og-image.png",
     "license": "https://github.com/pratyansh-agrawal/promptring/blob/main/LICENSE",
     "author": {
@@ -117,6 +117,9 @@
     pre .c{color:#7d8aa0}
     code.inline{background:#f0f0f4;border-radius:6px;padding:2px 7px;font-size:90%;
       font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    details.alternatives{margin-top:18px;color:var(--muted)}
+    details.alternatives summary{cursor:pointer;font-weight:600;color:var(--ink)}
+    details.alternatives pre{margin-top:12px}
 
     footer{border-top:1px solid var(--line);margin-top:48px;padding:28px 0 36px;
       color:var(--muted);font-size:15px;text-align:center}
@@ -139,8 +142,8 @@
       <p class="tagline">Desktop notifications for the <strong>GitHub Copilot CLI</strong> — that little <em>tring</em> 🔔 the moment your terminal agent is done, needs input, or hits a blocker.</p>
       <p class="ipa" style="margin-top:14px">macOS · Windows · Linux · WSL — one codebase, native banners everywhere</p>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/pratyansh-agrawal/promptring">⭐ View on GitHub</a>
-        <a class="btn ghost" href="#install">Install</a>
+        <a class="btn primary" href="#install">Install with npm</a>
+        <a class="btn ghost" href="https://github.com/pratyansh-agrawal/promptring">⭐ View on GitHub</a>
       </div>
     </div>
   </header>
@@ -161,7 +164,7 @@
         <div class="feature"><div class="emoji">🔔</div><h3>Real macOS banners</h3><p>A signed notification agent posts genuine Notification Center banners on macOS — not fragile escape codes — with native equivalents on Windows, Linux and WSL.</p></div>
         <div class="feature"><div class="emoji">🌍</div><h3>macOS · Windows · Linux · WSL</h3><p>One Python orchestrator, native delivery per OS: a signed app on macOS, a WinRT toast on Windows, <code class="inline">notify-send</code> on Linux, and an inline toast under WSL.</p></div>
         <div class="feature"><div class="emoji">📂</div><h3>Tab name &amp; summary</h3><p>Each banner shows which terminal session pinged you and a one-line recap of what the agent did.</p></div>
-        <div class="feature"><div class="emoji">⚡</div><h3>One dependency</h3><p>Just <code class="inline">python3</code> — no Homebrew, no package manager, no osascript hacks. Clone and run the installer.</p></div>
+        <div class="feature"><div class="emoji">⚡</div><h3>One-command setup</h3><p>Install from npm and the OS-aware setup configures the notifier and Copilot CLI hooks automatically.</p></div>
         <div class="feature"><div class="emoji">🪝</div><h3>Native CLI hooks</h3><p>Fires on the Copilot CLI's own lifecycle events — finish, permission prompt, input request — so a banner shows up reliably without you watching the terminal.</p></div>
         <div class="feature"><div class="emoji">🔊</div><h3>Mute &amp; custom tone</h3><p>Ships its own “tring” chime, layered on the banner. From any terminal, <code class="inline">promptring --mute</code> silences it (banners stay) and <code class="inline">promptring --tring &lt;file&gt;</code> sets your own sound.</p></div>
       </div>
@@ -169,16 +172,24 @@
 
     <section id="install">
       <h2>Install</h2>
-      <p class="lead" style="margin-bottom:16px">One line, no clone. Everything installs under <code class="inline">~/.copilot/promptring</code> — then restart your Copilot CLI session so the hook loads.</p>
-      <pre><span class="c"># macOS · Linux · WSL</span>
+      <p class="lead" style="margin-bottom:16px">Install the official npm package. The installer detects macOS, Windows, Linux, or WSL automatically.</p>
+      <pre>npm install -g promptring</pre>
+      <p class="lead" style="margin-top:16px"><strong>Prerequisites:</strong> Node.js 18+ and Python 3. macOS also needs Xcode Command Line Tools; Linux/WSL needs <code class="inline">notify-send</code> for notification banners.</p>
+      <p class="lead" style="margin-top:12px">Everything installs under <code class="inline">~/.copilot/promptring</code>. Restart your Copilot CLI session so the hook loads, then run <code class="inline">promptring --check</code>.</p>
+      <details class="alternatives">
+        <summary>Alternative direct or source installation</summary>
+        <pre><span class="c"># macOS · Linux · WSL</span>
 curl -fsSL https://pratyansh-agrawal.github.io/promptring/install.sh | bash
 
 <span class="c"># Windows (PowerShell)</span>
 irm https://pratyansh-agrawal.github.io/promptring/install.ps1 | iex
 
-<span class="c"># test it</span>
-~/.copilot/promptring/bin/promptring.py done "promptring works"</pre>
-      <p class="lead" style="margin-top:16px"><strong>Prerequisites:</strong> <code class="inline">python3</code>. macOS also needs Xcode Command Line Tools (<code class="inline">xcode-select --install</code>); Linux/WSL also needs <code class="inline">notify-send</code> (<code class="inline">sudo apt install libnotify-bin</code>); Windows needs Python from <a href="https://www.python.org/downloads/">python.org</a> ("Add to PATH"). Prefer to clone? <code class="inline">git clone</code> the repo and run <code class="inline">./install.sh</code> (or <code class="inline">install.ps1</code>). Full per-OS docs on <a href="https://github.com/pratyansh-agrawal/promptring">GitHub</a>.</p>
+<span class="c"># From source</span>
+git clone https://github.com/pratyansh-agrawal/promptring.git
+cd promptring
+./install.sh
+<span class="c"># Windows: powershell -ExecutionPolicy Bypass -File install.ps1</span></pre>
+      </details>
     </section>
   </main>
 

@@ -667,7 +667,7 @@ def _set_custom_tone(path):
     warn = ""
     if os.path.splitext(src)[1].lower().lstrip(".") not in (
             "wav", "aiff", "mp3", "m4a", "caf", "ogg", "flac"):
-        warn = ("\n  ! unusual audio extension — it may not play on every "
+        warn = ("\n  ! unusual audio extension - it may not play on every "
                 "platform (Linux paplay/aplay favour wav/ogg/flac).")
     try:
         # Keep exactly one active tone: clear any prior copy first.
@@ -682,7 +682,7 @@ def _set_custom_tone(path):
     state["tone"] = dst
     if not save_state(state):
         return False, "promptring: could not write state file"
-    return True, f"promptring: custom tone set → {os.path.basename(dst)}{warn}"
+    return True, f"promptring: custom tone set -> {os.path.basename(dst)}{warn}"
 
 
 def _clear_custom_tone():
@@ -712,7 +712,7 @@ def handle_cli(args):
         state = load_state()
         state["muted"] = (flag == "--mute")
         if not save_state(state):
-            print("promptring: could not write state file — setting not saved.")
+            print("promptring: could not write state file - setting not saved.")
             return 1
         print("promptring: chime muted (banners still show)." if state["muted"]
               else "promptring: chime unmuted.")
@@ -731,7 +731,7 @@ def handle_cli(args):
         if len(args) != 1:
             return _invalid_command(args)
         if not _clear_custom_tone():
-            print("promptring: could not write state file — setting not saved.")
+            print("promptring: could not write state file - setting not saved.")
             return 1
         print("promptring: reverted to the default chime.")
         return 0
@@ -783,7 +783,7 @@ def main(argv):
     if os.environ.get("PROMPTRING_DRYRUN", "").lower() in ("1", "true", "yes"):
         spec["platform"] = ("macos" if IS_MACOS else "windows" if IS_WINDOWS
                             else "wsl" if IS_WSL else "linux" if IS_LINUX else "unknown")
-        print(json.dumps(spec, ensure_ascii=False))
+        print(json.dumps(spec))
         return 0
     ok = deliver(spec)
     _dbg(f"delivered={ok} key={key} "

@@ -1,6 +1,6 @@
 {
   "name": "promptring",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "Native desktop notifications for GitHub Copilot CLI on macOS, Windows, Linux, and WSL.",
   "keywords": [
     "copilot",
@@ -44,7 +44,10 @@
   "scripts": {
     "test": "python3 tests/test_core.py && PROMPTRING_DRYRUN=1 bash tests/smoke.sh",
     "postinstall": "node npm-cli.js install",
-    "prepack": "node --check npm-cli.js && npm test"
+    "prepack": "node --check npm-cli.js && npm test",
+    "prepublishOnly": "node scripts/require-staged-publish.mjs",
+    "pack:npm": "node scripts/prepare-npm-package.mjs && npm pack .npm-package",
+    "publish:npm": "node --check npm-cli.js && npm test && node scripts/prepare-npm-package.mjs && npm publish .npm-package --access public"
   },
   "engines": {
     "node": ">=18"

@@ -14,7 +14,9 @@
   <br><br>
   <img src="https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20WSL-000" alt="macOS · Windows · Linux · WSL">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-  <img src="https://img.shields.io/badge/dependency-python3-brightgreen" alt="Only python3">
+  <img src="https://img.shields.io/badge/requires-Node.js%2018%2B%20%2B%20Python%203-brightgreen" alt="Requires Node.js 18+ and Python 3">
+  <a href="https://www.npmjs.com/package/promptring"><img src="https://img.shields.io/npm/v/promptring" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/promptring"><img src="https://img.shields.io/npm/dm/promptring" alt="npm downloads"></a>
 </p>
 
 <p align="center">
@@ -34,7 +36,7 @@ input, or hits a blocker. Switch to another window and you'll still catch the
 
 ## Why promptring
 
-- 🌍 **Cross-platform** — native desktop notifications on every major OS, from one codebase and a single `python3` dependency.
+- 🌍 **Cross-platform** — native desktop notifications on every major OS, driven by one shared Python orchestrator.
 - 🔔 **Real banners, not hacks** — genuine Notification Center / toast banners, never fragile terminal escape codes.
 - 📂 **Session-aware** — each banner names the terminal tab that pinged you and recaps what the agent did in one line.
 - 🪝 **Deterministic** — fires on the Copilot CLI's own lifecycle hooks, so you're alerted on finish, permission prompts, and input requests.
@@ -42,16 +44,21 @@ input, or hits a blocker. Switch to another window and you'll still catch the
 
 ## Install
 
-One line, no clone. The installer lands everything in `~/.copilot/promptring`;
-restart the Copilot CLI afterward so the hook loads.
-
-**npm**
+Install the official npm package:
 
 ```sh
-npm install --global promptring
+npm install -g promptring
 ```
 
-The npm postinstall runs the same OS-aware setup as the one-line installer.
+**Prerequisites:** Node.js 18+ and Python 3. macOS also needs Xcode Command
+Line Tools; Linux/WSL needs `notify-send` for notification banners.
+
+The npm installer detects macOS, Windows, Linux, or WSL automatically and lands
+everything in `~/.copilot/promptring`. Restart the Copilot CLI afterward so the
+hook loads.
+
+<details>
+<summary><strong>Alternative direct or source installation</strong></summary>
 
 **macOS · Linux · WSL**
 
@@ -65,10 +72,16 @@ curl -fsSL https://pratyansh-agrawal.github.io/promptring/install.sh | bash
 irm https://pratyansh-agrawal.github.io/promptring/install.ps1 | iex
 ```
 
-> **Prerequisites:** `python3`. macOS also needs Xcode Command Line Tools
-> (`xcode-select --install`); Linux/WSL also needs `notify-send`
-> (`sudo apt install libnotify-bin`); Windows needs Python from
-> [python.org](https://www.python.org/downloads/) ("Add to PATH").
+**From source**
+
+```sh
+git clone https://github.com/pratyansh-agrawal/promptring.git
+cd promptring
+./install.sh
+# Windows: powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+</details>
 
 Send a test banner — expect a notification plus the *tring*:
 
@@ -79,18 +92,6 @@ Send a test banner — expect a notification plus the *tring*:
 > On macOS, the first banner asks for notification permission — click **Allow**,
 > then set **System Settings → Notifications → Promptring** to **Banners** (new
 > apps sometimes default to "None").
-
-<details>
-<summary><strong>Prefer to install from source?</strong></summary>
-
-```sh
-git clone https://github.com/pratyansh-agrawal/promptring.git
-cd promptring
-./install.sh        # macOS · Linux · WSL
-# Windows:  powershell -ExecutionPolicy Bypass -File install.ps1
-```
-
-</details>
 
 ## Usage
 

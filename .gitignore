@@ -11,3 +11,6 @@ promptring.log
 platform/macos/Promptring.app/
 __pycache__/
 *.bak
+
+# Generated npm publication staging directory
+.npm-package/
