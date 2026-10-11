@@ -14,7 +14,7 @@
   <br><br>
   <img src="https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux%20·%20WSL-000" alt="macOS · Windows · Linux · WSL">
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-  <img src="https://img.shields.io/badge/dependency-python3-brightgreen" alt="Only python3">
+  <img src="https://img.shields.io/badge/requires-Node.js%2018%2B%20%2B%20Python%203-brightgreen" alt="Requires Node.js 18+ and Python 3">
   <a href="https://www.npmjs.com/package/promptring"><img src="https://img.shields.io/npm/v/promptring" alt="npm version"></a>
   <a href="https://www.npmjs.com/package/promptring"><img src="https://img.shields.io/npm/dm/promptring" alt="npm downloads"></a>
 </p>
@@ -36,7 +36,7 @@ input, or hits a blocker. Switch to another window and you'll still catch the
 
 ## Why promptring
 
-- 🌍 **Cross-platform** — native desktop notifications on every major OS, from one codebase and a single `python3` dependency.
+- 🌍 **Cross-platform** — native desktop notifications on every major OS, driven by one shared Python orchestrator.
 - 🔔 **Real banners, not hacks** — genuine Notification Center / toast banners, never fragile terminal escape codes.
 - 📂 **Session-aware** — each banner names the terminal tab that pinged you and recaps what the agent did in one line.
 - 🪝 **Deterministic** — fires on the Copilot CLI's own lifecycle hooks, so you're alerted on finish, permission prompts, and input requests.
