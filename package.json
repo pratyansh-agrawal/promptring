@@ -1,6 +1,6 @@
 {
   "name": "promptring",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Native desktop notifications for GitHub Copilot CLI on macOS, Windows, Linux, and WSL.",
   "keywords": [
     "copilot",
