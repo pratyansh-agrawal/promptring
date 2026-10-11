@@ -60,6 +60,14 @@ hook loads.
 <details>
 <summary><strong>Alternative direct or source installation</strong></summary>
 
+**npm**
+
+```sh
+npm install --global promptring
+```
+
+The npm postinstall runs the same OS-aware setup as the one-line installer.
+
 **macOS · Linux · WSL**
 
 ```sh
